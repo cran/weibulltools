@@ -1,7 +1,7 @@
 Package: weibulltools
 Type: Package
 Title: Statistical Methods for Life Data Analysis
-Version: 0.5.4
+Version: 1.0.0
 Authors@R: person("Hensel", "Tim-Gunnar", 
            email = "tim-gunnar.hensel@tu-berlin.de", 
            role = c("aut", "cre")) 
@@ -25,24 +25,28 @@ Description: Contains methods for examining bench test or field data using the
              intervals (Meeker and Escobar, 1998, <ISBN:9780471673279>) and the 
              beta-binomial confidence bounds are also included. 
              If desired, the data can automatically be divided into subgroups 
-             using segmented regression. 
+             using segmented regression. And if the number of subgroups in a 
+             Weibull Mixture Model is known, data can be analyzed using the 
+             EM-Algorithm. 
              Besides the calculation, methods for interactive visualization of 
-             the edited data using *Plotly* are provided as well. These 
+             the edited data using *plotly* are provided as well. These 
              visualizations include the layout of a probability plot for a 
              specified distribution, the graphical technique of probability plotting 
              and the possibility of adding regression lines and confidence bounds 
              to existing plots. 
 License: GPL-2
-Imports: dplyr, magrittr, plotly, Rcpp, sandwich, segmented, SPREDA,
-        survival
-LinkingTo: Rcpp
+Imports: dplyr, LearnBayes, magrittr, plotly, Rcpp, sandwich,
+        segmented, SPREDA, survival
+LinkingTo: Rcpp (>= 0.12.18), RcppArmadillo
+Depends: R (>= 3.3.0)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 6.0.1
-Suggests: knitr, rmarkdown
+RoxygenNote: 6.1.1
+Suggests: ggplot2, knitr, rmarkdown, tidyverse
+VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2018-07-25 12:05:59 UTC; Tim.Hensel
+Packaged: 2019-01-26 09:57:33 UTC; Tim.Hensel
 Author: Hensel Tim-Gunnar [aut, cre]
 Maintainer: Hensel Tim-Gunnar <tim-gunnar.hensel@tu-berlin.de>
 Repository: CRAN
-Date/Publication: 2018-07-25 21:50:03 UTC
+Date/Publication: 2019-01-26 15:00:03 UTC
