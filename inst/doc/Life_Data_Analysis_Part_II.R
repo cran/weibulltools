@@ -1,6 +1,7 @@
 ## ----setup, echo = FALSE-------------------------------------------------
 knitr::opts_chunk$set(
   collapse = TRUE,
+  screenshot.force = FALSE,
   comment = "#>"
 )
 library(weibulltools)

@@ -1,7 +1,7 @@
 Package: weibulltools
 Type: Package
 Title: Statistical Methods for Life Data Analysis
-Version: 1.0.0
+Version: 1.0.1
 Authors@R: person("Hensel", "Tim-Gunnar", 
            email = "tim-gunnar.hensel@tu-berlin.de", 
            role = c("aut", "cre")) 
@@ -45,8 +45,8 @@ RoxygenNote: 6.1.1
 Suggests: ggplot2, knitr, rmarkdown, tidyverse
 VignetteBuilder: knitr
 NeedsCompilation: yes
-Packaged: 2019-01-26 09:57:33 UTC; Tim.Hensel
+Packaged: 2019-01-29 15:04:07 UTC; Tim.Hensel
 Author: Hensel Tim-Gunnar [aut, cre]
 Maintainer: Hensel Tim-Gunnar <tim-gunnar.hensel@tu-berlin.de>
 Repository: CRAN
-Date/Publication: 2019-01-26 15:00:03 UTC
+Date/Publication: 2019-01-29 16:10:03 UTC
