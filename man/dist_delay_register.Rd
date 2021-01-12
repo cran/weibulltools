@@ -7,26 +7,32 @@
 dist_delay_register(date_prod, date_register, distribution = "lognormal")
 }
 \arguments{
-\item{date_prod}{a vector of class \code{"character"} or \code{"Date"}, in the
+\item{date_prod}{A vector of class \code{character} or \code{Date}, in the
 format "yyyy-mm-dd", indicating the date of production of a unit.
-If no date is available use \code{NA}.}
+Use \code{NA} for missing elements.}
 
-\item{date_register}{a vector of class \code{"character"} or \code{"Date"}, in
+\item{date_register}{A vector of class \code{character} or \code{Date}, in
 the format "yyyy-mm-dd", indicating the date of registration of a unit.
-If no date is available use \code{NA}.}
+Use \code{NA} for missing elements.}
 
-\item{distribution}{supposed distribution of the random variable. The default
-value is \code{"lognormal"}. So far no other distribution is implemented.}
+\item{distribution}{Supposed distribution of the random variable. Only
+\code{"lognormal"} is implemented.}
 }
 \value{
 A named vector of estimated parameters for the specified
-  distribution.
+distribution.
 }
 \description{
+\ifelse{html}{\figure{lifecycle-soft-deprecated.svg}{options: alt='Soft-deprecated lifecycle'}}{\strong{Soft-deprecated}}
+
+\code{dist_delay_register()} is no longer under active development, switching
+to \code{\link{dist_delay}} is recommended.
+}
+\details{
 This function introduces a delay random variable by calculating the time
 difference between the registration and production date for the sample units
 and afterwards estimates the parameter(s) of a supposed distribution,
-using MLE.
+using maximum likelihood.
 }
 \examples{
 date_of_production   <- c("2014-07-28", "2014-02-17", "2014-07-14",
@@ -44,7 +50,9 @@ date_of_registration <- c(NA, "2014-03-29", "2014-12-06", "2014-09-09",
                           NA, "2014-03-21", "2014-06-19", NA, NA)
 
 params_delay_regist  <- dist_delay_register(
-                                    date_prod = date_of_production,
-                                    date_register = date_of_registration,
-                                    distribution = "lognormal")
+  date_prod = date_of_production,
+  date_register = date_of_registration,
+  distribution = "lognormal"
+)
+
 }

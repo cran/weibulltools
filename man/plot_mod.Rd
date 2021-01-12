@@ -3,106 +3,93 @@
 \encoding{UTF-8}
 \name{plot_mod}
 \alias{plot_mod}
-\title{Adding an Estimated Population Line to a Probability Plot}
+\alias{plot_mod.wt_model}
+\title{Add Estimated Population Line(s) to a Probability Plot}
 \usage{
-plot_mod(p_obj, x, y = NULL, loc_sc_params, distribution = c("weibull",
-  "lognormal", "loglogistic", "normal", "logistic", "sev", "weibull3",
-  "lognormal3", "loglogistic3"), title_trace = "Fit")
+plot_mod(p_obj, x, ...)
+
+\method{plot_mod}{wt_model}(p_obj, x, title_trace = "Fit", ...)
 }
 \arguments{
-\item{p_obj}{a plotly object provided by function \code{\link{plot_prob}}.}
+\item{p_obj}{A plot object returned from \code{\link{plot_prob}}.}
 
-\item{x}{a numeric vector containing the x-coordinates of the regression line.}
+\item{x}{An object of class \code{wt_model}.}
 
-\item{y}{a numeric vector containing the y-coordinates of the regression line.
-The default value of y is \code{NULL}. If \code{y} is set \code{NULL} the
-y-coordinates with respect to \code{x} are calculated by function
-\code{predict_prob} using estimated coefficients in \code{loc_sc_params}. If
-confidence interval(s) should be added to the plot y should not be set to
-\code{NULL}. For more information see \strong{Details} in \code{\link{plot_conf}}.}
+\item{...}{Further arguments passed to or from other methods. Currently not used.}
 
-\item{loc_sc_params}{a (named) numeric vector of estimated location
-and scale parameters for a specified distribution. The order of
-elements is important. First entry needs to be the location
-parameter \eqn{\mu} and the second element needs to be the scale
-parameter \eqn{\sigma}. If a three-parametric model is used the third element
-is the threshold parameter \eqn{\gamma}.}
-
-\item{distribution}{supposed distribution of the random variable. The
-value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-\code{"normal"}, \code{"logistic"}, \code{"sev"} \emph{(smallest extreme value)},
-\code{"weibull3"}, \code{"lognormal3"} or \code{"loglogistic3"}.
-Other distributions have not been implemented yet.}
-
-\item{title_trace}{a character string whis is assigned to the trace shown in
+\item{title_trace}{A character string which is assigned to the trace shown in
 the legend.}
 }
 \value{
-Returns a plotly object containing the probability plot with
-  plotting positions and the estimated regression line.
+Returns a plot object containing the probability plot with
+  plotting positions and the estimated regression line(s).
 }
 \description{
-This function adds a regression line to an existing probability plot using a
-model estimated by \code{\link{rank_regression}} or \code{\link{ml_estimation}}.
+This function adds one or multiple estimated regression lines to an existing
+probability plot (\code{\link{plot_prob}}). Depending on the output of the
+functions \code{\link{rank_regression}}, \code{ml_estimation},
+\code{\link{mixmod_regression}} or \code{\link{mixmod_em}} one or
+multiple lines are plotted.
+}
+\details{
+The name of the legend entry is a combination of the \code{title_trace} and
+the number of determined subgroups from \code{\link{mixmod_regression}} or
+\code{\link{mixmod_em}}. If \code{title_trace = "Line"} and the
+data could be split in two groups, the legend entries would be "Line: 1"
+and "Line: 2".
 }
 \examples{
-# Alloy T7987 dataset taken from Meeker and Escobar(1998, p. 131)
-cycles   <- c(300, 300, 300, 300, 300, 291, 274, 271, 269, 257, 256, 227, 226,
-              224, 213, 211, 205, 203, 197, 196, 190, 189, 188, 187, 184, 180,
-              180, 177, 176, 173, 172, 171, 170, 170, 169, 168, 168, 162, 159,
-              159, 159, 159, 152, 152, 149, 149, 144, 143, 141, 141, 140, 139,
-              139, 136, 135, 133, 131, 129, 123, 121, 121, 118, 117, 117, 114,
-              112, 108, 104, 99, 99, 96, 94)
-state <- c(rep(0, 5), rep(1, 67))
-id <- 1:length(cycles)
+# Reliability data:
+data <- reliability_data(data = alloy, x = cycles, status = status)
 
-df_john <- johnson_method(x = cycles, event = state, id = id)
-
-# Example 1: Probability Plot and Regression Line Three-Parameter-Weibull:
-plot_weibull <- plot_prob(x = df_john$characteristic,
-                          y = df_john$prob,
-                          event = df_john$status,
-                          id = df_john$id,
-                          distribution = "weibull",
-                          title_main = "Three-Parametric Weibull",
-                          title_x = "Cycles",
-                          title_y = "Probability of Failure in \%",
-                          title_trace = "Failed Items")
-
-mrr <- rank_regression(x = df_john$characteristic,
-                       y = df_john$prob,
-                       event = df_john$status,
-                       distribution = "weibull3",
-                       conf_level = .90)
-
-plot_reg_weibull <- plot_mod(p_obj = plot_weibull, x = cycles,
-                             loc_sc_params = mrr$loc_sc_coefficients,
-                             distribution = "weibull3",
-                             title_trace = "Estimated Weibull CDF")
+# Probability estimation:
+prob_tbl <- estimate_cdf(data, methods = c("johnson", "kaplan"))
 
 
+## Rank Regression
+# Example 1 - Probability Plot and Regression Line Three-Parameter-Weibull:
+plot_weibull <- plot_prob(prob_tbl, distribution = "weibull")
+rr_weibull <- rank_regression(prob_tbl, distribution = "weibull3")
 
-# Example 2: Probability Plot and Regression Line Three-Parameter-Lognormal:
-plot_lognormal <- plot_prob(x = df_john$characteristic,
-                          y = df_john$prob,
-                          event = df_john$status,
-                          id = df_john$id,
-                          distribution = "lognormal",
-                          title_main = "Three-Parametric Lognormal",
-                          title_x = "Cycles",
-                          title_y = "Probability of Failure in \%",
-                          title_trace = "Failed Items")
+plot_reg_weibull <- plot_mod(p_obj = plot_weibull, x = rr_weibull)
 
-mrr_ln <- rank_regression(x = df_john$characteristic,
-                       y = df_john$prob,
-                       event = df_john$status,
-                       distribution = "lognormal3",
-                       conf_level = .90)
+# Example 2 - Probability Plot and Regression Line Three-Parameter-Lognormal:
+plot_lognormal <- plot_prob(prob_tbl, distribution = "lognormal")
+rr_lognormal <- rank_regression(prob_tbl, distribution = "lognormal3")
 
-plot_reg_lognormal <- plot_mod(p_obj = plot_lognormal, x = cycles,
-                             loc_sc_params = mrr_ln$loc_sc_coefficients,
-                             distribution = "lognormal3",
-                             title_trace = "Estimated Lognormal CDF")
+plot_reg_lognormal <- plot_mod(p_obj = plot_lognormal, x = rr_lognormal)
+
+
+## ML Estimation
+# Example 3 - Probability Plot and Regression Line Two-Parameter-Weibull:
+plot_weibull <- plot_prob(prob_tbl, distribution = "weibull")
+ml_weibull_2 <- ml_estimation(data, distribution = "weibull")
+
+plot_reg_weibull_2 <- plot_mod(p_obj = plot_weibull, ml_weibull_2)
+
+
+## Mixture Identification
+# Reliability data:
+data_mix <- reliability_data(voltage, x = hours, status = status)
+
+# Probability estimation:
+prob_mix <- estimate_cdf(
+  data_mix,
+  methods = c("johnson", "kaplan", "nelson")
+)
+
+# Example 4 - Probability Plot and Regression Line Mixmod Regression:
+mix_mod_rr <- mixmod_regression(prob_mix, distribution = "weibull")
+plot_weibull <- plot_prob(mix_mod_rr)
+
+plot_reg_mix_mod_rr <- plot_mod(p_obj = plot_weibull, x = mix_mod_rr)
+
+# Example 5 - Probability Plot and Regression Line Mixmod EM:
+mix_mod_em <- mixmod_em(data_mix)
+plot_weibull <- plot_prob(mix_mod_em)
+
+plot_reg_mix_mod_em <- plot_mod(p_obj = plot_weibull, x = mix_mod_em)
+
 }
 \references{
 Meeker, William Q; Escobar, Luis A., Statistical methods for

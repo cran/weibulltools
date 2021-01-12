@@ -1,4 +1,4 @@
-## ----setup, echo = FALSE-------------------------------------------------
+## ----setup, echo = FALSE------------------------------------------------------
 knitr::opts_chunk$set(
   collapse = TRUE,
   screenshot.force = FALSE,
@@ -6,11 +6,9 @@ knitr::opts_chunk$set(
 )
 library(weibulltools)
 
-# set.seed() for reproducibility of random sampled id's
-set.seed(2905)
-
-## ----rank densities, fig.cap = "Figure 1: Densities for different ranks i in samples of size n = 10.", message = FALSE----
-library(tidyverse) # using dplyr manipulation functions and ggplot2
+## ----rank_densities, fig.cap = "Figure 1: Densities for different ranks i in samples of size n = 10.", message = FALSE----
+library(dplyr) # data manipulation 
+library(ggplot2) # visualization
 
 x <- seq(0, 1, length.out = 100) # CDF
 n <- 10 # sample size
@@ -27,66 +25,47 @@ densplot <- ggplot(data = df_dens, aes(x = cdf, y = pdf, colour = as.factor(i)))
   labs(x = "Failure Probability", y = "Density")
 densplot
 
-## ----dataset shock, fig.cap = "Figure 2: Boxplots for different modes.", message = FALSE----
-library(SPREDA) # for dataset shock
-data(shock)
-# generate random ids for units: 
-shock$id <- sample(c(letters, LETTERS), size = nrow(shock), replace = FALSE)
+## ----dataset_shock, message = FALSE-------------------------------------------
+shock_tbl <- reliability_data(data = shock, x = distance, status = status)
+shock_tbl
 
-# using tibble for better print: 
-as_tibble(shock)
+## ----failure_probabilities----------------------------------------------------
+# Estimate CDF with both methods: 
+cdf_tbl <- estimate_cdf(shock_tbl, methods = c("mr", "johnson"))
 
-# Comparison of failure modes: 
-ggplot(data = shock, aes(x = Mode, y = Distance)) + 
-  geom_boxplot() + 
-  theme_bw()
-
-## ----failure probabilities, results = 'asis'-----------------------------
 # First case where only failed units are taken into account:
-df_mr <- mr_method(id = shock$id[shock$Censor == 1], 
-                   x = shock$Distance[shock$Censor == 1], 
-                   event = shock$Censor[shock$Censor == 1])
-knitr::kable(df_mr, format = "html", row.names = FALSE, align = "c", 
-             caption = "Table 1: Failure probabilities using failed items.")
+cdf_tbl_mr <- cdf_tbl %>% filter(cdf_estimation_method == "mr")
+cdf_tbl_mr
 
 # Second case where both, survived and failed units are considered:
-df_john <- johnson_method(id = shock$id, x = shock$Distance, event = shock$Censor)
-knitr::kable(df_john, format = "html", row.names = FALSE, align = "c", 
-             caption = "Table 2: Failure probabilities using all items.") 
+cdf_tbl_john <- cdf_tbl %>% filter(cdf_estimation_method == "johnson") 
+cdf_tbl_john
 
-## ----probability plot weibull, fig.cap = "Figure 3: Plotting positions in weibull grid.", message = FALSE----
-# Weibull grid for probabilities calculated with Johnson: 
-weibull_grid <- plot_prob(x = df_john$characteristic, y = df_john$prob, 
-                          event = df_john$status, id = df_john$id, 
-                          distribution = "weibull", 
-                          title_main = "Weibull Probability Plot", 
-                          title_x = "Mileage in km", 
-                          title_y = "Probability of Failure in %",
-                          title_trace = "Failures (Johnson)")
+## ----probability_plot_weibull, fig.cap = "Figure 3: Plotting positions in Weibull grid.", message = FALSE----
+# Weibull grid for estimated probabilities: 
+weibull_grid <- plot_prob(
+  cdf_tbl,
+  distribution = "weibull", 
+  title_main = "Weibull Probability Plot", 
+  title_x = "Mileage in km", 
+  title_y = "Probability of Failure in %",
+  title_trace = "Method",
+  plot_method = "ggplot2"
+)
 
-library(plotly) # Using add_trace()
-# Adding a trace so that estimated probabilities of mr_method can be plotted in 
-# the same graph: 
-# Arguments inside add_trace: 
-#   y: Must be transformed such that quantiles of smallest extreme value distribution are plotted. 
-#   x: Since distribution in plot_prob is "weibull" the x axis is already on log scale. 
-#      Thus x can be plugged in on natural scale. 
-weibull_grid_both <- weibull_grid %>% 
-  add_trace(data = df_mr, type = "scatter", mode = "markers", x = ~characteristic, 
-    y = ~SPREDA::qsev(prob), name = "Failures (MR)", color = I("#006400"), 
-    hoverinfo = "text", text = ~paste("ID:", id,
-      paste("<br>", paste0("Mileage", ":")), characteristic, 
-      paste("<br>", paste0("Probability", ":")), round(prob, digits = 5))) 
-weibull_grid_both
+weibull_grid
 
-## ----probability plot log-normal, fig.cap = "Figure 4: Plotting positions in log-normal grid.", message = FALSE----
-# Log-Normal grid for probabilities calculated with Johnson: 
-lognorm_grid <- plot_prob(x = df_john$characteristic, y = df_john$prob,
-                          event = df_john$status, id = df_john$id,
-                          distribution = "lognormal",
-                          title_main = "Log-Normal Probability Plot",
-                          title_x = "Mileage in km",
-                          title_y = "Probability of Failure in %",
-                          title_trace = "Defect Shock Absorbers")
+## ----probability_plot_log-normal, fig.cap = "Figure 4: Plotting positions in log-normal grid.", message = FALSE----
+# Log-normal grid for estimated probabilities: 
+lognorm_grid <- plot_prob(
+  cdf_tbl,
+  distribution = "lognormal",
+  title_main = "Log-normal Probability Plot",
+  title_x = "Mileage in km",
+  title_y = "Probability of Failure in %",
+  title_trace = "Method",
+  plot_method = "ggplot2"
+)
+
 lognorm_grid
 

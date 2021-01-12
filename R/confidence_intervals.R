@@ -1,318 +1,440 @@
-#' Estimation of Quantiles for Parametric Lifetime Distributions
+#' Beta Binomial Confidence Bounds for Quantiles and Probabilities
 #'
-#' This function estimates the quantiles for a given set of estimated
-#' location-scale (and threshold) parameters and specified failure probabilities.
+#' @description
+#' This non-parametric approach computes the beta binomial bounds (BB) for
+#' quantiles and failure probabilities using a procedure similar to the calculation
+#' of probabilities in terms of (\emph{Median Ranks}).
 #'
-#' @param p a numeric vector which consists of failure probabilities
-#'   regarding the lifetime data.
-#' @param loc_sc_params a (named) numeric vector of estimated location
-#'   and scale parameters for a specified distribution. The order of
-#'   elements is important. First entry needs to be the location
-#'   parameter \eqn{\mu} and the second element needs to be the scale
-#'   parameter \eqn{\sigma}. If a three-parametric model is used the third element
-#'   is the threshold parameter \eqn{\gamma}.
-#' @param distribution supposed distribution of the random variable. The
-#'   value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-#'   \code{"normal"}, \code{"logistic"}, \code{"sev"} \emph{(smallest extreme value)},
-#'   \code{"weibull3"}, \code{"lognormal3"} or \code{"loglogistic3"}.
-#'   Other distributions have not been implemented yet.
+#' @details The difference to \emph{Median Ranks}, i.e. finding the probability of
+#' rank \emph{j} at a 50\% level, is to determine the probability of rank \emph{j}
+#' on another level, the specified confidence level.
 #'
-#' @return A vector containing the estimated quantiles for a given set of
-#'   failure probabilities and estimated parameters.
+#' @param x Object with class \code{wt_model} and one of the classes
+#'   \code{wt_model_estimation} or \code{wt_model_estimation_list} returned from
+#'   \code{\link{rank_regression}}.
+#' @param b_lives A numeric vector indicating the probabilities \emph{p} of the
+#'   \eqn{B_p}-lives (quantiles) to be considered.
+#' @param bounds A character string specifying of which bounds have to be computed.
+#'   One of \code{"two_sided"}, \code{"lower"} or \code{"upper"}.
+#' @param conf_level Confidence level of the interval.
+#' @param direction A character string specifying the direction of the
+#'   confidence interval. One of \code{"y"} (failure probabilities) or \code{"x"}
+#'   (quantiles).
+#' @template dots
 #'
-#' @export
+#' @return A tibble with class \code{wt_confint} containing the following columns:
+#'   \itemize{
+#'     \item \code{x} : An ordered sequence of the lifetime characteristic regarding
+#'       the failed units, starting at \code{min(x)} and ending up at \code{max(x)}.
+#'       With \code{b_lives = c(0.01, 0.1, 0.5)} the 1\%, 10\% and 50\% quantiles
+#'       are additionally included in \code{x}, but only if the specified
+#'       probabilities are in the range of the estimated probabilities.
+#'     \item \code{rank} : Interpolated ranks as a function of probabilities,
+#'       computed with the converted approximation formula of Benard.
+#'     \item \code{prob} : An ordered sequence of probabilities with specified
+#'       \code{b_lives} included.
+#'     \item \code{lower_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"lower"}. Lower limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{upper_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"upper"}. Upper limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{distribution} : Specified distribution (determined when calling
+#'       \code{\link{rank_regression}}).
+#'     \item \code{bounds} : Specified bound(s).
+#'     \item \code{direction} : Specified direction.
+#'     \item \code{cdf_estimation_method} : Specified method for the estimation
+#'       of failure probabilities (determined when calling
+#'       \code{\link{estimate_cdf}}).
+#'   }
 #'
 #' @examples
-#' # Example 1: Predicted quantiles for two-parameter Weibull:
-#' quants <- predict_quantile(p = c(0.01, 0.1, 0.5), loc_sc_params = c(5, 0.5),
-#'                            distribution = "weibull")
+#' # Reliability data preparation:
+#' ## Data for two-parametric model:
+#' data_2p <- reliability_data(
+#'   shock,
+#'   x = distance,
+#'   status = status
+#' )
 #'
-#' # Example 2: Predicted quantiles for three-parameter Weibull:
-#' quants_weib3 <- predict_quantile(p = c(0.01, 0.1, 0.5), loc_sc_params = c(5, 0.5, 10),
-#'                            distribution = "weibull3")
-
-predict_quantile <- function(p, loc_sc_params,
-                             distribution = c("weibull", "lognormal", "loglogistic",
-                                              "normal", "logistic", "sev", "weibull3",
-                                              "lognormal3", "loglogistic3")) {
-
-  distribution <- match.arg(distribution)
-
-  if (!(distribution %in% c("weibull", "lognormal", "loglogistic", "normal",
-                            "logistic", "sev", "weibull3", "lognormal3",
-                            "loglogistic3"))) {
-    stop("No valid distribution!")
-  }
-
-  # Log-Location-Scale Distributions:
-  if (distribution == "weibull") {
-    quantiles <- exp(SPREDA::qsev(p) * loc_sc_params[[2]] + loc_sc_params[[1]])
-  }
-  if (distribution == "lognormal") {
-    quantiles <- exp(stats::qnorm(p) * loc_sc_params[[2]] + loc_sc_params[[1]])
-  }
-  if (distribution == "loglogistic") {
-    quantiles <- exp(stats::qlogis(p) * loc_sc_params[[2]] + loc_sc_params[[1]])
-  }
-  # Log-Location-Scale Distributions with Threshold:
-  if (distribution == "weibull3") {
-    quantiles <- exp(SPREDA::qsev(p) * loc_sc_params[[2]] + loc_sc_params[[1]]) +
-      loc_sc_params[[3]]
-  }
-  if (distribution == "lognormal3") {
-    quantiles <- exp(stats::qnorm(p) * loc_sc_params[[2]] + loc_sc_params[[1]]) +
-      loc_sc_params[[3]]
-  }
-  if (distribution == "loglogistic3") {
-    quantiles <- exp(stats::qlogis(p) * loc_sc_params[[2]] + loc_sc_params[[1]]) +
-      loc_sc_params[[3]]
-  }
-  # Location-Scale Distributions:
-  if (distribution == "sev") {
-    quantiles <- SPREDA::qsev(p) * loc_sc_params[[2]] + loc_sc_params[[1]]
-  }
-  if (distribution == "normal") {
-    quantiles <- stats::qnorm(p) * loc_sc_params[[2]] + loc_sc_params[[1]]
-  }
-  if (distribution == "logistic") {
-    quantiles <- stats::qlogis(p) * loc_sc_params[[2]] + loc_sc_params[[1]]
-  }
-
-  x_pred <- quantiles
-  return(x_pred)
+#' ## Data for three-parametric model:
+#' data_3p <- reliability_data(
+#'   alloy,
+#'   x = cycles,
+#'   status = status
+#' )
+#'
+#' # Probability estimation:
+#' prob_tbl_2p <- estimate_cdf(
+#'   data_2p,
+#'   methods = "johnson"
+#' )
+#'
+#' prob_tbl_3p <- estimate_cdf(
+#'   data_3p,
+#'   methods = "johnson"
+#' )
+#'
+#' prob_tbl_mult <- estimate_cdf(
+#'   data_3p,
+#'   methods = c("johnson", "mr")
+#' )
+#'
+#' # Model estimation with rank_regression():
+#' rr_2p <- rank_regression(
+#'   prob_tbl_2p,
+#'   distribution = "weibull"
+#' )
+#'
+#' rr_3p <- rank_regression(
+#'   prob_tbl_3p,
+#'   distribution = "lognormal3",
+#'   conf_level = 0.90
+#' )
+#'
+#' rr_lists <- rank_regression(
+#'   prob_tbl_mult,
+#'   distribution = "loglogistic3",
+#'   conf_level = 0.90
+#' )
+#'
+#' # Example 1 - Two-sided 95% confidence interval for probabilities ('y'):
+#' conf_betabin_1 <- confint_betabinom(
+#'   x = rr_2p,
+#'   bounds = "two_sided",
+#'   conf_level = 0.95,
+#'   direction = "y"
+#' )
+#'
+#' # Example 2 - One-sided lower/upper 90% confidence interval for quantiles ('x'):
+#' conf_betabin_2_1 <- confint_betabinom(
+#'   x = rr_2p,
+#'   bounds = "lower",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' conf_betabin_2_2 <- confint_betabinom(
+#'   x = rr_2p,
+#'   bounds = "upper",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' # Example 3 - Two-sided 90% confidence intervals for both directions using
+#' # a three-parametric model:
+#' conf_betabin_3_1 <- confint_betabinom(
+#'   x = rr_3p,
+#'   bounds = "two_sided",
+#'   conf_level = 0.90,
+#'   direction = "y"
+#' )
+#'
+#' conf_betabin_3_2 <- confint_betabinom(
+#'   x = rr_3p,
+#'   bounds = "two_sided",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' # Example 4 - Confidence intervals if multiple methods in estimate_cdf, i.e.
+#' # "johnson" and "mr", were specified:
+#'
+#' conf_betabin_4 <- confint_betabinom(
+#'   x = rr_lists,
+#'   bounds = "two_sided",
+#'   conf_level = 0.99,
+#'   direction = "y"
+#' )
+#'
+#' @export
+confint_betabinom <- function(x, ...) {
+  UseMethod("confint_betabinom")
 }
 
 
-#' Estimation of Failure Probabilities for Parametric Lifetime Distributions
+
+#' @rdname confint_betabinom
 #'
-#' This function estimates the failure probabilities for a given set of estimated
-#' location-scale (and threshold) parameters and specified quantiles.
-#'
-#' @param q a numeric vector which consists of lifetime data.
-#' @param loc_sc_params a (named) numeric vector of estimated location
-#'   and scale parameters for a specified distribution. The order of
-#'   elements is important. First entry needs to be the location
-#'   parameter \eqn{\mu} and the second element needs to be the scale
-#'   parameter \eqn{\sigma}. If a three-parametric model is used the third element
-#'   is the threshold parameter \eqn{\gamma}.
-#' @param distribution supposed distribution of the random variable. The
-#'   value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-#'   \code{"normal"}, \code{"logistic"}, \code{"sev"} \emph{(smallest extreme value)},
-#'   \code{"weibull3"}, \code{"lognormal3"} or \code{"loglogistic3"}.
-#'   Other distributions have not been implemented yet.
-#'
-#' @return A vector containing the estimated failure probabilities for a given
-#'   set of quantiles and estimated parameters.
 #' @export
-#'
-#' @examples
-#' # Example 1: Predicted probabilities for two-parameter Weibull:
-#' probs <- predict_prob(q = c(15, 48, 124), loc_sc_params = c(5, 0.5),
-#'                            distribution = "weibull")
-#'
-#' # Example 2: Predicted probabilities for three-parameter Weibull:
-#' probs_weib3 <- predict_prob(q = c(25, 58, 134), loc_sc_params = c(5, 0.5, 10),
-#'                            distribution = "weibull3")
+confint_betabinom.wt_model <- function(x,
+                                       b_lives = c(0.01, 0.1, 0.50),
+                                       bounds = c(
+                                         "two_sided", "lower", "upper"
+                                       ),
+                                       conf_level = 0.95,
+                                       direction = c("y", "x"),
+                                       ...
+) {
+  stopifnot(
+    inherits(x, "wt_model_estimation") ||
+      inherits(x, "wt_model_estimation_list")
+  )
 
-predict_prob <- function(q, loc_sc_params,
-                         distribution = c("weibull", "lognormal", "loglogistic",
-                                          "normal", "logistic", "sev", "weibull3",
-                                          "lognormal3", "loglogistic3")) {
-
-  distribution <- match.arg(distribution)
-
-  if (!(distribution %in% c("weibull", "lognormal", "loglogistic", "normal",
-                            "logistic", "sev", "weibull3", "lognormal3",
-                            "loglogistic3"))) {
-    stop("No valid distribution!")
-  }
-
-  # Log-Location-Scale Distributions:
-  if (distribution == "weibull") {
-    # Standardize:
-    z <- (log(q) - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- SPREDA::psev(z)
-  }
-  if (distribution == "lognormal") {
-    # Standardize:
-    z <- (log(q) - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- stats::pnorm(z)
-  }
-  if (distribution == "loglogistic") {
-    # Standardize:
-    z <- (log(q) - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- stats::plogis(z)
-  }
-  # Log-Location-Scale Distributions with Threshold:
-  if (distribution == "weibull3") {
-    # Standardize:
-    z <- (log(q - loc_sc_params[[3]]) - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- SPREDA::psev(z)
-  }
-  if (distribution == "lognormal3") {
-    # Standardize:
-    z <- (log(q - loc_sc_params[[3]]) - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- stats::pnorm(z)
-  }
-  if (distribution == "loglogistic3") {
-    # Standardize:
-    z <- (log(q - loc_sc_params[[3]]) - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- stats::plogis(z)
-  }
-  # Location-Scale Distributions:
-  if (distribution == "sev") {
-    # Standardize:
-    z <- (q - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- SPREDA::psev(z)
-  }
-  if (distribution == "normal") {
-    # Standardize:
-    z <- (q - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- stats::pnorm(z)
-  }
-  if (distribution == "logistic") {
-    # Standardize:
-    z <- (q - loc_sc_params[[1]]) / loc_sc_params[[2]]
-    cdf <- stats::plogis(z)
-  }
-
-  y_pred <- cdf
-  return(y_pred)
+  NextMethod()
 }
 
 
-#' Beta Binomial Confidence Bounds for Quantiles and/or Probabilities
-#'
-#' This non-parametric approach calculates confidence bounds for quantiles and/or
-#' failure probabilities using a procedure that is similar to that used in
-#' calculating median ranks. The location-scale (and threshold) parameters estimated
-#' by rank regression are needed.
-#'
-#' @encoding UTF-8
-#' @references Meeker, William Q; Escobar, Luis A., Statistical methods for
-#'   reliability data, New York: Wiley series in probability and statistics, 1998
-#'
-#' @param x a numeric vector which consists of lifetime data. \code{x} is used to
-#'   specify the range of confidence region(s).
-#' @param event a vector of binary data (0 or 1) indicating whether unit \emph{i}
-#'   is a right censored observation (= 0) or a failure (= 1).
-#' @param loc_sc_params a (named) numeric vector of estimated location
-#'   and scale parameters for a specified distribution. The order of
-#'   elements is important. First entry needs to be the location
-#'   parameter \eqn{\mu} and the second element needs to be the scale
-#'   parameter \eqn{\sigma}. If a three-parametric model is used the third element
-#'   is the threshold parameter \eqn{\gamma}.
-#' @param distribution supposed distribution of the random variable. The
-#'   value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-#'   \code{"normal"}, \code{"logistic"}, \code{"sev"} \emph{(smallest extreme value)},
-#'   \code{"weibull3"}, \code{"lognormal3"} or \code{"loglogistic3"}.
-#'   Other distributions have not been implemented yet.
-#' @param bounds a character string specifying the interval(s) which has/have to
-#'   be computed. Must be one of "two_sided" (default), "lower" or "upper".
-#' @param conf_level confidence level of the interval. The default value is
-#'   \code{conf_level = 0.95}.
-#' @param direction a character string specifying the direction of the computed
-#'   interval(s). Must be either "y" (failure probabilities) or "x" (quantiles).
-#'
-#' @return A data frame containing the lifetime characteristic, interpolated
-#'   ranks as a function of probabilities, the probabilities which are used to
-#'   compute the ranks and computed values for the specified confidence bound(s).
+
 #' @export
+confint_betabinom.wt_model_estimation <- function(x,
+                                                  b_lives = c(0.01, 0.1, 0.50),
+                                                  bounds = c(
+                                                    "two_sided", "lower",
+                                                    "upper"
+                                                  ),
+                                                  conf_level = 0.95,
+                                                  direction = c("y", "x"),
+                                                  ...
+) {
+  bounds <- match.arg(bounds)
+  direction <- match.arg(direction)
+
+  confint_betabinom_(
+    model_estimation = x,
+    b_lives = b_lives,
+    bounds = bounds,
+    conf_level = conf_level,
+    direction = direction
+  )
+}
+
+
+
+#' @export
+confint_betabinom.wt_model_estimation_list <- function(
+                                      x,
+                                      b_lives = c(0.01, 0.1, 0.50),
+                                      bounds = c("two_sided", "lower", "upper"),
+                                      conf_level = 0.95,
+                                      direction = c("y", "x"),
+                                      ...
+) {
+  bounds <- match.arg(bounds)
+  direction <- match.arg(direction)
+
+  confint <- purrr::map_dfr(x, function(model_estimation) {
+    confint <- confint_betabinom_(
+      model_estimation = model_estimation,
+      b_lives = b_lives,
+      bounds = bounds,
+      conf_level = conf_level,
+      direction = direction
+    )
+  })
+
+  attr(confint, "model_estimation") <- x
+  confint
+}
+
+
+
+#' Beta Binomial Confidence Bounds for Quantiles and Probabilities
+#'
+#' @inherit confint_betabinom description details
+#'
+#' @inheritParams ml_estimation.default
+#' @inheritParams confint_betabinom
+#' @param x A numeric vector which consists of lifetime data. Lifetime data
+#'   could be every characteristic influencing the reliability of a product,
+#'   e.g. operating time (days/months in service), mileage (km, miles), load
+#'   cycles.
+#' @param dist_params A (named) numeric vector of (log-)location-scale parameters
+#'   returned from \code{\link{rank_regression}}.
+#' @param distribution Supposed distribution of the random variable. Has to be in
+#'   line with the specification made in \code{\link{rank_regression}}.
+#'
+#' @return A tibble with class \code{wt_confint} containing the following
+#' columns:
+#'   \itemize{
+#'     \item \code{x} : An ordered sequence of the lifetime characteristic regarding
+#'       the failed units, starting at \code{min(x)} and ending up at \code{max(x)}.
+#'       With \code{b_lives = c(0.01, 0.1, 0.5)} the 1\%, 10\% and 50\% quantiles
+#'       are additionally included in \code{x}, but only if the specified
+#'       probabilities are in the range of the estimated probabilities.
+#'     \item \code{rank} : Interpolated ranks as a function of probabilities,
+#'       computed with the converted approximation formula of Benard.
+#'     \item \code{prob} : An ordered sequence of probabilities with specified
+#'       \code{b_lives} included.
+#'     \item \code{lower_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"lower"}. Lower limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{upper_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"upper"}. Upper limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{distribution} : Specified distribution.
+#'     \item \code{bounds} : Specified bound(s).
+#'     \item \code{direction} : Specified direction.
+#'     \item \code{cdf_estimation_method} : A character that is always
+#'       \code{NA_character}. Due to the generic visualization functions this
+#'       column has to be provided.
+#'   }
+#'
+#' @seealso \code{\link{confint_betabinom}}
 #'
 #' @examples
-#' # Example 1: Beta-Binomial Confidence Bounds for two-parameter Weibull:
-#' obs   <- seq(10000, 100000, 10000)
-#' state <- c(0, 1, 1, 0, 0, 0, 1, 0, 1, 0)
+#' # Vectors:
+#' obs <- seq(10000, 100000, 10000)
+#' status_1 <- c(0, 1, 1, 0, 0, 0, 1, 0, 1, 0)
 #'
-#' df_john <- johnson_method(x = obs, event = state)
+#' cycles <- alloy$cycles
+#' status_2 <- alloy$status
 #'
-#' mrr <- rank_regression(x = df_john$characteristic,
-#'                        y = df_john$prob,
-#'                        event = df_john$status,
-#'                        distribution = "weibull",
-#'                        conf_level = .95)
+#' # Probability estimation:
+#' prob_tbl <- estimate_cdf(
+#'   x = obs,
+#'   status = status_1,
+#'   method = "johnson"
+#' )
 #'
-#' conf_betabin <- confint_betabinom(x = df_john$characteristic,
-#'                                   event = df_john$status,
-#'                                   loc_sc_params = mrr$loc_sc_coefficients,
-#'                                   distribution = "weibull",
-#'                                   bounds = "two_sided",
-#'                                   conf_level = 0.95,
-#'                                   direction = "y")
+#' prob_tbl_2 <- estimate_cdf(
+#'   x = cycles,
+#'   status = status_2,
+#'   method = "johnson"
+#' )
 #'
-#' # Example 2: Beta-Binomial Confidence Bounds for three-parameter Weibull:
-#' # Alloy T7987 dataset taken from Meeker and Escobar(1998, p. 131)
-#' cycles   <- c(300, 300, 300, 300, 300, 291, 274, 271, 269, 257, 256, 227, 226,
-#'               224, 213, 211, 205, 203, 197, 196, 190, 189, 188, 187, 184, 180,
-#'               180, 177, 176, 173, 172, 171, 170, 170, 169, 168, 168, 162, 159,
-#'               159, 159, 159, 152, 152, 149, 149, 144, 143, 141, 141, 140, 139,
-#'               139, 136, 135, 133, 131, 129, 123, 121, 121, 118, 117, 117, 114,
-#'               112, 108, 104, 99, 99, 96, 94)
-#' state <- c(rep(0, 5), rep(1, 67))
+#' # Model estimation with rank_regression():
+#' rr <- rank_regression(
+#'   x = prob_tbl$x,
+#'   y = prob_tbl$prob,
+#'   status = prob_tbl$status,
+#'   distribution = "weibull",
+#'   conf_level = 0.9
+#' )
 #'
-#' df_john2 <- johnson_method(x = cycles, event = state)
-#' mrr_weib3 <- rank_regression(x = df_john2$characteristic,
-#'                        y = df_john2$prob,
-#'                        event = df_john2$status,
-#'                        distribution = "weibull3",
-#'                        conf_level = .95)
+#' rr_2 <- rank_regression(
+#'   x = prob_tbl_2$x,
+#'   y = prob_tbl_2$prob,
+#'   status = prob_tbl_2$status,
+#'   distribution = "lognormal3"
+#' )
 #'
-#' conf_betabin_weib3 <- confint_betabinom(x = df_john2$characteristic,
-#'                                   event = df_john2$status,
-#'                                   loc_sc_params = mrr_weib3$loc_sc_coefficients,
-#'                                   distribution = "weibull3",
-#'                                   bounds = "two_sided",
-#'                                   conf_level = 0.95,
-#'                                   direction = "y")
-
-confint_betabinom <- function(x, event, loc_sc_params,
-                              distribution = c("weibull", "lognormal", "loglogistic",
-                                               "normal", "logistic", "sev", "weibull3",
-                                               "lognormal3", "loglogistic3"),
-                              bounds = c("two_sided", "lower", "upper"),
-                              conf_level = .95, direction = c("y", "x")) {
+#' # Example 1 - Two-sided 95% confidence interval for probabilities ('y'):
+#' conf_betabin_1 <- confint_betabinom(
+#'   x = prob_tbl$x,
+#'   status = prob_tbl$status,
+#'   dist_params = rr$coefficients,
+#'   distribution = "weibull",
+#'   bounds = "two_sided",
+#'   conf_level = 0.95,
+#'   direction = "y"
+#' )
+#'
+#' # Example 2 - One-sided lower/upper 90% confidence interval for quantiles ('x'):
+#' conf_betabin_2_1 <- confint_betabinom(
+#'   x = prob_tbl$x,
+#'   status = prob_tbl$status,
+#'   dist_params = rr$coefficients,
+#'   distribution = "weibull",
+#'   bounds = "lower",
+#'   conf_level = 0.9,
+#'   direction = "x"
+#' )
+#'
+#' conf_betabin_2_2 <- confint_betabinom(
+#'   x = prob_tbl$x,
+#'   status = prob_tbl$status,
+#'   dist_params = rr$coefficients,
+#'   distribution = "weibull",
+#'   bounds = "upper",
+#'   conf_level = 0.9,
+#'   direction = "x"
+#' )
+#'
+#' # Example 3 - Two-sided 90% confidence intervals for both directions using
+#' # a three-parametric model:
+#'
+#' conf_betabin_3_1 <- confint_betabinom(
+#'   x = prob_tbl_2$x,
+#'   status = prob_tbl_2$status,
+#'   dist_params = rr_2$coefficients,
+#'   distribution = "lognormal3",
+#'   bounds = "two_sided",
+#'   conf_level = 0.9,
+#'   direction = "y"
+#' )
+#'
+#' conf_betabin_3_2 <- confint_betabinom(
+#'   x = prob_tbl_2$x,
+#'   status = prob_tbl_2$status,
+#'   dist_params = rr_2$coefficients,
+#'   distribution = "lognormal3",
+#'   bounds = "two_sided",
+#'   conf_level = 0.9,
+#'   direction = "x"
+#' )
+#'
+#' @export
+confint_betabinom.default <- function(x,
+                                      status,
+                                      dist_params,
+                                      distribution = c(
+                                        "weibull", "lognormal", "loglogistic",
+                                        "normal", "logistic", "sev",
+                                        "weibull3", "lognormal3", "loglogistic3"
+                                      ),
+                                      b_lives = c(0.01, 0.1, 0.50),
+                                      bounds = c("two_sided", "lower", "upper"),
+                                      conf_level = 0.95,
+                                      direction = c("y", "x"),
+                                      ...
+) {
 
   bounds <- match.arg(bounds)
   direction <- match.arg(direction)
   distribution <- match.arg(distribution)
 
-  if (!(distribution %in% c("weibull", "lognormal", "loglogistic", "normal",
-                            "logistic", "sev", "weibull3", "lognormal3",
-                            "loglogistic3"))) {
-    stop("No valid distribution!")
+  # Fake wt_model_estimation
+  model_estimation <- list(
+    data = tibble::tibble(
+      x = x, status = status, cdf_estimation_method = NA_character_
+    ),
+    coefficients = dist_params,
+    distribution = distribution
+  )
+
+  confint_betabinom_(
+    model_estimation = model_estimation,
+    b_lives = b_lives,
+    bounds = bounds,
+    conf_level = conf_level,
+    direction = direction
+  )
+}
+
+
+
+confint_betabinom_ <- function(model_estimation,
+                               b_lives,
+                               bounds,
+                               conf_level,
+                               direction
+) {
+
+  cdf_estimation_method <- model_estimation$data$cdf_estimation_method[1]
+
+  if (cdf_estimation_method %in% c("kaplan", "nelson")) {
+    stop(
+      "The beta binomial confidence intervals cannot be calculated for method '",
+      cdf_estimation_method, "'. Use method 'mr' or 'johnson' in estimate_cdf()."
+    )
   }
 
+  x <- model_estimation$data$x
+  status <- model_estimation$data$status
+
+  distribution <- model_estimation$distribution
+  dist_params <- model_estimation$coefficients
 
   n <- length(x)
-  x_ob <- x[event == 1]
+  x_ob <- x[status == 1]
 
-  # Range of failed items:
-  x_min <- min(x_ob, na.rm = TRUE)
-  x_max <- max(x_ob, na.rm = TRUE)
-  x_seq <- seq(x_min, x_max, length.out = 100)
+  x_y_b_lives <- add_b_lives(x_ob, dist_params, distribution, b_lives)
 
-  # Range of probabilities calculated with estimated regression line:
-  y_seq <- predict_prob(q = x_seq, loc_sc_params = loc_sc_params,
-                        distribution = distribution)
+  x_seq <- x_y_b_lives$x_seq
+  y_seq <- x_y_b_lives$y_seq
 
-  # Probabilities of special interest (B-Lives):
-  b_perc <- c(0.01, 0.1, 0.50)
-  # Looking for these probabilities in range of estimated ones:
-  int_ind <- findInterval(x = b_perc, vec = c(y_seq[1], y_seq[length(y_seq)]),
-                          rightmost.closed = TRUE)
-
-  # Add them:
-  y_seq <- unique(c(y_seq, b_perc[which(int_ind == 1)]))
-  y_seq <- y_seq[order(y_seq)]
-
-  # Calculating and adding B-Lives to x-vector:
-  x_b <- predict_quantile(p = b_perc[which(int_ind == 1)],
-                          loc_sc_params = loc_sc_params,
-                          distribution = distribution)
-  x_seq <- unique(c(x_seq, x_b))
-  x_seq <- x_seq[order(x_seq)]
-
-  # Caluclating virtual ranks, i.e. interpolating between realisations using
+  # Calculating virtual ranks, i.e. interpolating between realizations using
   # Benard's approximation:
   virt_rank <- y_seq * (n + 0.4) + 0.3
 
@@ -332,95 +454,160 @@ confint_betabinom <- function(x, event, loc_sc_params,
 
   # Bounds for probability (y) or quantiles (x):
   if (direction == "y") {
-    list_output <- c(list(characteristic = x_seq, rank = virt_rank, prob = y_seq),
-                     list_confint)
-    df_output <- as.data.frame(list_output)
-  } else {
-    x_confint <- lapply(list_confint, predict_quantile,
-                        loc_sc_params = loc_sc_params,
-                        distribution = distribution)
-    list_output <- c(list(characteristic = x_seq, rank = virt_rank, prob = y_seq),
-                     x_confint)
+    list_output <- c(
+      list(x = x_seq, rank = virt_rank, prob = y_seq),
+      list_confint
+    )
 
-    df_output <- as.data.frame(list_output)
+    tbl_out <- tibble::as_tibble(list_output)
+  } else {
+    x_confint <- purrr::map(
+      list_confint,
+      predict_quantile,
+      dist_params = dist_params,
+      distribution = distribution
+    )
+
+    list_output <- c(
+      list(x = x_seq, rank = virt_rank, prob = y_seq),
+      x_confint
+    )
+
+    tbl_out <- tibble::as_tibble(list_output)
   }
-  return(df_output)
+
+  tbl_out <- tbl_out %>%
+    dplyr::mutate(
+      distribution = distribution,
+      bounds = bounds,
+      direction = direction,
+      cdf_estimation_method = cdf_estimation_method
+    )
+
+  if (inherits(model_estimation, "wt_model_estimation")) {
+    # Only add model_estimation if not faked by .default
+    attr(tbl_out, "model_estimation") <- model_estimation
+  }
+
+  class(tbl_out) <- c("wt_confint", class(tbl_out))
+
+  return(tbl_out)
 }
+
 
 
 #' Delta Method for Parametric Lifetime Distributions
 #'
-#' The Delta Method estimates the standard error for quantities that can be
-#' written as non-linear functions of ML estimators like quantiles. I.e. the
-#' (log-)location-scale (and threshold) parameters and variance-covariance matrix
-#' of these need to be estimated by Maximum Likelihood.
+#' @description
+#' This function applies the delta method for two- or three-parametric lifetime
+#' distributions that belong to the (log-)location-scale family.
+#'
+#' @details
+#' The delta method estimates the standard errors for quantities that can be
+#' written as non-linear functions of ML estimators. Hence, (log-)location-scale
+#' parameters as well as the variance-covariance matrix of these have to be estimated
+#' with \link[=ml_estimation]{maximum likelihood}.
+#'
+#' The estimated standard errors are needed to calculate Fisher's (normal
+#' approximation) confidence intervals. For confidence bounds on the probability,
+#' standard errors of the standardized quantiles (\code{direction = "y"})
+#' have to be computed (\emph{z-procedure}) and for bounds on quantiles, standard errors
+#' of quantiles (\code{direction = "x"}) are required. For more information see
+#' \code{\link{confint_fisher}}.
+#'
+#' @param p A numeric vector of probabilities or quantiles. If the standard errors
+#'   of quantiles should be determined the corresponding probabilities have to be
+#'   specified, and if the standard errors of standardized quantiles (z-values)
+#'   should be computed corresponding quantiles are required.
+#' @param dist_params A (named) numeric vector of (log-)location-scale parameters
+#'   returned from \code{\link{ml_estimation}}.
+#' @param distribution Supposed distribution of the random variable. Has to be in
+#'   line with the specification made in \code{\link{ml_estimation}}.
+#' @param dist_varcov A (named) numeric matrix of estimated variances and
+#'   covariances returned from \code{\link{ml_estimation}}.
+#' @param direction A character string specifying for which quantity the standard
+#'   errors are calculated. One of \code{"y"} (if \code{p} are quantiles) or
+#'   \code{"x"} (if \code{p} are probabilities).
+#'
+#' @return A numeric vector of estimated standard errors for quantiles or
+#'   standardized quantiles (\emph{z-values}).
 #'
 #' @encoding UTF-8
+#'
 #' @references Meeker, William Q; Escobar, Luis A., Statistical methods for
 #'   reliability data, New York: Wiley series in probability and statistics, 1998
 #'
-#' @param p a numeric value of a probability or a quantile. If the standard error
-#'   of quantile is of interest a specific probability needs to be supplied and if
-#'   the standard error of a standardized quantile (z-value) should be calculated
-#'   a specific quantile should be provided.
-#' @param loc_sc_params a (named) numeric vector of estimated
-#'   (by Maximum Likelihood) location and scale parameters for a specified
-#'   distribution. The order of elements is important. First entry needs to be
-#'   the location parameter \eqn{\mu} and the second element needs to be the
-#'   scale parameter \eqn{\sigma}. If a three-parametric model is used the third element
-#'   is the threshold parameter \eqn{\gamma}.
-#' @param loc_sc_varcov a (named) numeric matrix of estimated
-#'   (by Maximum Likelihood) location and scale variances and covariances for a
-#'   specified distribution. The order of elements is important. First entry
-#'   of the diagonal needs to be the variance of the location parameter
-#'   Var(\eqn{\mu}) and the second element of the diagonal needs to be the
-#'   variance of the scale parameter Var(\eqn{\sigma}). If a three-parametric model
-#'   is used the third element of the diagonal needs to be the variance of the
-#'   threshold parameter Var(\eqn{\gamma}).
-#' @param distribution supposed distribution of the random variable. The
-#'   value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-#'   \code{"normal"}, \code{"logistic"}, \code{"sev"} \emph{(smallest extreme value)},
-#'   \code{"weibull3"}, \code{"lognormal3"} or \code{"loglogistic3"}.
-#'   Other distributions have not been implemented yet.
-#' @param direction a character string specifying the direction of the computed
-#'   standard errors. Must be either "y" (used for confidence intervals of failure
-#'   probabilities in \code{\link{confint_fisher}}) or "x" (used for confidence
-#'   intervals of quantiles in \code{\link{confint_fisher}}). If \code{p} is a
-#'   quantile then \emph{direction} needs to be "y" and vice versa.
-#'
-#' @return A numeric value with estimated standard errors of quantiles or standardized
-#'   z values. Both are required for the computation of normal approximation
-#'   confidence intervals. If standard errors of standardized z values are compueted
-#'   one can calculate confidence intervals for distribution probabilities (z-procedure,
-#'   which is used inside \code{\link{confint_fisher}}).
-#' @export
-#'
 #' @examples
-#' obs   <- seq(10000, 100000, 10000)
-#' state <- c(0, 1, 1, 0, 0, 0, 1, 0, 1, 0)
+#' # Reliability data preparation:
+#' data <- reliability_data(
+#'   shock,
+#'   x = distance,
+#'   status = status
+#' )
 #'
-#' mle <- ml_estimation(x = obs, event = state,
-#'                      distribution = "weibull", conf_level = 0.95)
-#' delta_prob <- sapply(obs, delta_method,
-#'                           loc_sc_params = mle$loc_sc_coefficients,
-#'                           loc_sc_varcov = mle$loc_sc_vcov,
-#'                           distribution = "weibull",
-#'                           direction = "y")
+#' # Parameter estimation using maximum likelihood:
+#' mle <- ml_estimation(
+#'   data,
+#'   distribution = "weibull",
+#'   conf_level = 0.95
+#' )
+#'
+#' # Example 1 - Standard errors of standardized quantiles:
+#' delta_y <- delta_method(
+#'   p = shock$distance,
+#'   dist_params = mle$coefficients,
+#'   dist_varcov = mle$varcov,
+#'   distribution = "weibull",
+#'   direction = "y"
+#' )
+#'
+#' # Example 2 - Standard errors of quantiles:
+#' delta_x <- delta_method(
+#'   p = seq(0.01, 0.99, 0.01),
+#'   dist_params = mle$coefficients,
+#'   dist_varcov = mle$varcov,
+#'   distribution = "weibull",
+#'   direction = "x"
+#' )
+#'
+#' @export
+delta_method <- function(p,
+                         dist_params,
+                         dist_varcov,
+                         distribution = c(
+                           "weibull", "lognormal", "loglogistic",
+                           "normal", "logistic", "sev",
+                           "weibull3", "lognormal3", "loglogistic3"
+                         ),
+                         direction = c("y", "x")
+) {
 
-delta_method <- function(p, loc_sc_params, loc_sc_varcov,
-                         distribution = c("weibull", "lognormal", "loglogistic",
-                                          "normal", "logistic", "sev", "weibull3",
-                                          "lognormal3", "loglogistic3"),
-                         direction = c("y", "x")) {
-
-  direction <- match.arg(direction)
   distribution <- match.arg(distribution)
+  direction <- match.arg(direction)
 
-  if (!(distribution %in% c("weibull", "lognormal", "loglogistic", "normal",
-                            "logistic", "sev", "weibull3", "lognormal3",
-                            "loglogistic3"))) {
-    stop("No valid distribution!")
-  }
+  dm_vectorized <- Vectorize(delta_method_, "p")
+
+  dm_vectorized(
+    p = p,
+    dist_params = dist_params,
+    dist_varcov = dist_varcov,
+    distribution = distribution,
+    direction = direction
+  )
+}
+
+
+
+delta_method_ <- function(p,
+                          dist_params,
+                          dist_varcov,
+                          distribution = c(
+                            "weibull", "lognormal", "loglogistic",
+                            "normal", "logistic", "sev",
+                            "weibull3", "lognormal3", "loglogistic3"
+                          ),
+                          direction = c("y", "x")
+) {
 
   # Standard Errors for quantiles:
   if (direction == "x") {
@@ -439,16 +626,28 @@ delta_method <- function(p, loc_sc_params, loc_sc_varcov,
     # First derivatives of quantile functions regarding parameters:
     if (distribution %in% c("weibull", "lognormal", "loglogistic")) {
       ## Quantile for specified distribution:
-      q <- predict_quantile(p = p, loc_sc_params = loc_sc_params,
-        distribution = distribution)
+      q <- predict_quantile(
+        p = p,
+        dist_params = dist_params,
+        distribution = distribution
+      )
+
       dq_dmu <- q
       dq_dsc <- z * q
       dq_dpar <- c(dq_dmu, dq_dsc)
     }
     if (distribution %in% c("weibull3", "lognormal3", "loglogistic3")) {
       # Quantile for specified two-parameter distribution (gamma is irrelevant; see derivatives):
-      q <- predict_quantile(p = p, loc_sc_params = loc_sc_params[-3],
-        distribution = substr(distribution, start = 1, stop = nchar(distribution) - 1))
+      q <- predict_quantile(
+        p = p,
+        dist_params = dist_params[-3],
+        distribution = substr(
+          distribution,
+          start = 1,
+          stop = nchar(distribution) - 1
+        )
+      )
+
       dq_dmu <- q
       dq_dsc <- z * q
       dq_dgam <- 1
@@ -462,175 +661,450 @@ delta_method <- function(p, loc_sc_params, loc_sc_varcov,
     }
 
     # Variance and standard error of quantiles:
-    var_q <- t(dq_dpar) %*% loc_sc_varcov %*% dq_dpar
+    var_q <- t(dq_dpar) %*% dist_varcov %*% dq_dpar
     std_err <- sqrt(var_q)
 
     # Standard Errors for z: The "z-Procedure":
   } else {
     # Standardized Random Variable:
     if (distribution %in% c("weibull", "lognormal", "loglogistic")) {
-      z <- (log(p) - loc_sc_params[[1]]) / loc_sc_params[[2]]
+      z <- (log(p) - dist_params[[1]]) / dist_params[[2]]
     }
     if (distribution %in% c("weibull3", "lognormal3", "loglogistic3")) {
-      z <- (log(p - loc_sc_params[[3]]) - loc_sc_params[[1]]) / loc_sc_params[[2]]
+      z <- (log(p - dist_params[[3]]) - dist_params[[1]]) / dist_params[[2]]
     }
     if (distribution %in% c("sev", "normal", "logistic")) {
-      z <- (p - loc_sc_params[[1]]) / loc_sc_params[[2]]
+      z <- (p - dist_params[[1]]) / dist_params[[2]]
     }
 
     # First derivatives of z regarding parameters:
     if (distribution %in% c("weibull", "lognormal", "loglogistic", "sev",
                             "normal", "logistic")) {
-      dz_dmu <- (-1 / loc_sc_params[[2]])
-      dz_dsc <- (-1 / loc_sc_params[[2]]) * z
+      dz_dmu <- (-1 / dist_params[[2]])
+      dz_dsc <- (-1 / dist_params[[2]]) * z
       dz_dpar <- c(dz_dmu, dz_dsc)
     }
 
     if (distribution %in% c("weibull3", "lognormal3", "loglogistic3")) {
-      dz_dmu <- (-1 / loc_sc_params[[2]])
-      dz_dsc <- (-1 / loc_sc_params[[2]]) * z
-      dz_dgam <- (1 / loc_sc_params[[2]]) * (1 / (loc_sc_params[[3]] - p))
+      dz_dmu <- (-1 / dist_params[[2]])
+      dz_dsc <- (-1 / dist_params[[2]]) * z
+      dz_dgam <- (1 / dist_params[[2]]) * (1 / (dist_params[[3]] - p))
       dz_dpar <- c(dz_dmu, dz_dsc, dz_dgam)
     }
 
-    var_z <- t(dz_dpar) %*% loc_sc_varcov %*% dz_dpar
+    var_z <- t(dz_dpar) %*% dist_varcov %*% dz_dpar
     std_err <- sqrt(var_z)
   }
+
   return(std_err)
 }
 
 
-#' Fisher Confidence Bounds for Quantiles and/or Probabilities
+
+#' Fisher's Confidence Bounds for Quantiles and Probabilities
 #'
-#' This method computes normal-approximation confidence intervals for quantiles
-#' and/or failure probabilities using the \code{\link{delta_method}}. The
-#' required (log-)location-scale (and threshold) parameters and variance-covariance matrix
-#' of these need to be estimated by Maximum Likelihood.
+#' @description
+#' This function computes normal-approximation confidence intervals for quantiles
+#' and failure probabilities.
 #'
-#' @param x a numeric vector which consists of lifetime data. \code{x} is used to
-#'   specify the range of confidence region(s).
-#' @param event a vector of binary data (0 or 1) indicating whether unit \emph{i}
-#'   is a right censored observation (= 0) or a failure (= 1).
-#' @param loc_sc_params a (named) numeric vector of estimated
-#'   (by Maximum Likelihood) location and scale parameters for a specified
-#'   distribution. The order of elements is important. First entry needs to be
-#'   the location parameter \eqn{\mu} and the second element needs to be the
-#'   scale parameter \eqn{\sigma}. If a three-parametric model is used the third element
-#'   is the threshold parameter \eqn{\gamma}.
-#' @param loc_sc_varcov a (named) numeric matrix of estimated
-#'   (by Maximum Likelihood) location and scale variances and covariances for a
-#'   specified distribution. The order of elements is important. First entry
-#'   of the diagonal needs to be the variance of the location parameter
-#'   Var(\eqn{\mu}) and the second element of the diagonal needs to be the
-#'   variance of the scale parameter Var(\eqn{\sigma}). If a three-parametric model
-#'   is used the third element of the diagonal needs to be the variance of the
-#'   threshold parameter Var(\eqn{\gamma}).
-#' @param distribution supposed distribution of the random variable. The
-#'   value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-#'   \code{"normal"}, \code{"logistic"}, \code{"sev"} \emph{(smallest extreme value)},
-#'   \code{"weibull3"}, \code{"lognormal3"} or \code{"loglogistic3"}.
-#'   Other distributions have not been implemented yet.
-#' @param bounds a character string specifying the interval(s) which has/have to
-#'   be computed. Must be one of "two_sided" (default), "lower" or "upper".
-#' @param conf_level confidence level of the interval. The default value is
-#'   \code{conf_level = 0.95}.
-#' @param direction a character string specifying the direction of the computed
-#'   interval(s). Must be either "y" (failure probabilities) or "x" (quantiles).
+#' @details
+#' The basis for the calculation of these confidence bounds are the standard errors
+#' determined by the \link[=delta_method]{delta method} and hence the required
+#' (log-)location-scale parameters as well as the variance-covariance matrix of
+#' these have to be estimated with \link[=ml_estimation]{maximum likelihood}.
 #'
-#' @return A data frame containing the lifetime characteristic, the
-#'   probabilities, estimated standard errors by the delta method and computed
-#'   values for the specified confidence bound(s).
-#' @export
+#' The bounds on the probability are determined by the \emph{z-procedure}. See
+#' 'References' for more information on this approach.
+#'
+#' @inheritParams confint_betabinom
+#'
+#' @param x Object with classes \code{wt_model} \strong{and}
+#'   \code{wt_ml_estimation} returned from \code{\link{ml_estimation}}.
+#'
+#' @return A tibble with class \code{wt_confint} containing the following
+#' columns:
+#'   \itemize{
+#'     \item \code{x} : An ordered sequence of the lifetime characteristic regarding
+#'       the failed units, starting at \code{min(x)} and ending up at \code{max(x)}.
+#'       With \code{b_lives = c(0.01, 0.1, 0.5)} the 1\%, 10\% and 50\% quantiles
+#'       are additionally included in \code{x}, but only if the specified
+#'       probabilities are in the range of the estimated probabilities.
+#'     \item \code{prob} : An ordered sequence of probabilities with specified
+#'       \code{b_lives} included.
+#'     \item \code{std_err} : Estimated standard errors with respect to
+#'       \code{direction}.
+#'     \item \code{lower_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"lower"}. Lower limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{upper_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"upper"}. Upper limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{distribution} : Specified distribution (determined when calling
+#'     \code{\link{ml_estimation}}).
+#'     \item \code{bounds} : Specified bound(s).
+#'     \item \code{direction} : Specified direction.
+#'     \item \code{cdf_estimation_method} : A character that is always
+#'       \code{NA_character}. For the generic visualization functions this
+#'       column has to be provided.
+#'   }
+#'
+#' @encoding UTF-8
+#'
+#' @references Meeker, William Q; Escobar, Luis A., Statistical methods for
+#'   reliability data, New York: Wiley series in probability and statistics, 1998
 #'
 #' @examples
-#' obs   <- seq(10000, 100000, 10000)
-#' state <- c(0, 1, 1, 0, 0, 0, 1, 0, 1, 0)
-#' df_john <- johnson_method(x = obs, event = state)
-#' mle <- ml_estimation(x = obs, event = state,
-#'                      distribution = "weibull", conf_level = 0.95)
-#' conf_fish <- confint_fisher(x = df_john$characteristic,
-#'                             event = df_john$status,
-#'                             loc_sc_params = mle$loc_sc_coefficients,
-#'                             loc_sc_varcov = mle$loc_sc_vcov,
-#'                             distribution = "weibull",
-#'                             bounds = "two_sided",
-#'                             conf_level = 0.95,
-#'                             direction = "y")
+#' # Reliability data preparation:
+#' ## Data for two-parametric model:
+#' data_2p <- reliability_data(
+#'   shock,
+#'   x = distance,
+#'   status = status
+#' )
+#'
+#' ## Data for three-parametric model:
+#' data_3p <- reliability_data(
+#'   alloy,
+#'   x = cycles,
+#'   status = status
+#' )
+#'
+#' # Model estimation with ml_estimation():
+#' ml_2p <- ml_estimation(
+#'   data_2p,
+#'   distribution = "weibull"
+#' )
+#'
+#' ml_3p <- ml_estimation(
+#'   data_3p,
+#'   distribution = "lognormal3",
+#'   conf_level = 0.90
+#' )
+#'
+#'
+#' # Example 1 - Two-sided 95% confidence interval for probabilities ('y'):
+#' conf_fisher_1 <- confint_fisher(
+#'   x = ml_2p,
+#'   bounds = "two_sided",
+#'   conf_level = 0.95,
+#'   direction = "y"
+#' )
+#'
+#' # Example 2 - One-sided lower/upper 90% confidence interval for quantiles ('x'):
+#' conf_fisher_2_1 <- confint_fisher(
+#'   x = ml_2p,
+#'   bounds = "lower",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' conf_fisher_2_2 <- confint_fisher(
+#'   x = ml_2p,
+#'   bounds = "upper",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' # Example 3 - Two-sided 90% confidence intervals for both directions using
+#' # a three-parametric model:
+#'
+#' conf_fisher_3_1 <- confint_fisher(
+#'   x = ml_3p,
+#'   bounds = "two_sided",
+#'   conf_level = 0.90,
+#'   direction = "y"
+#' )
+#'
+#' conf_fisher_3_2 <- confint_fisher(
+#'   x = ml_3p,
+#'   bounds = "two_sided",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' @export
+confint_fisher <- function(x, ...) {
+  UseMethod("confint_fisher")
+}
 
-confint_fisher <- function(x, event, loc_sc_params, loc_sc_varcov,
-                           distribution = c("weibull", "lognormal", "loglogistic",
-                                            "normal", "logistic", "sev", "weibull3",
-                                            "lognormal3", "loglogistic3"),
-                           bounds = c("two_sided", "lower", "upper"),
-                           conf_level = .95, direction = c("y", "x")) {
+
+
+#' @rdname confint_fisher
+#'
+#' @export
+confint_fisher.wt_model <- function(x,
+                                    b_lives = c(0.01, 0.1, 0.50),
+                                    bounds = c(
+                                      "two_sided", "lower", "upper"
+                                    ),
+                                    conf_level = 0.95,
+                                    direction = c("y", "x"),
+                                    ...
+) {
+  stopifnot(inherits(x, "wt_ml_estimation"))
+  NextMethod()
+}
+
+
+
+#' @export
+confint_fisher.wt_ml_estimation <- function(x,
+                                            b_lives = c(0.01, 0.1, 0.50),
+                                            bounds = c(
+                                              "two_sided", "lower", "upper"
+                                            ),
+                                            conf_level = 0.95,
+                                            direction = c("y", "x"),
+                                            ...
+) {
+
+  bounds <- match.arg(bounds)
+  direction <- match.arg(direction)
+
+  confint_fisher_(
+    model_estimation = x,
+    b_lives = b_lives,
+    bounds = bounds,
+    conf_level = conf_level,
+    direction = direction
+  )
+}
+
+
+
+#' Fisher's Confidence Bounds for Quantiles and Probabilities
+#'
+#' @inherit confint_fisher description details references
+#'
+#' @inheritParams delta_method
+#' @inheritParams confint_betabinom.default
+#'
+#' @param direction A character string specifying the direction of the
+#'   confidence interval. One of \code{"y"} (failure probabilities) or \code{"x"}
+#'   (quantiles).
+#'
+#' @return A tibble with class \code{wt_confint} containing the following
+#' columns:
+#'   \itemize{
+#'     \item \code{x} : An ordered sequence of the lifetime characteristic regarding
+#'       the failed units, starting at \code{min(x)} and ending up at \code{max(x)}.
+#'       With \code{b_lives = c(0.01, 0.1, 0.5)} the 1\%, 10\% and 50\% quantiles
+#'       are additionally included in \code{x}, but only if the specified
+#'       probabilities are in the range of the estimated probabilities.
+#'     \item \code{prob} : An ordered sequence of probabilities with specified
+#'       \code{b_lives} included.
+#'     \item \code{std_err} : Estimated standard errors with respect to
+#'       \code{direction}.
+#'     \item \code{lower_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"lower"}. Lower limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{upper_bound} : Provided, if \code{bounds} is one of
+#'       \code{"two_sided"} or \code{"upper"}. Upper limit of the confidence region
+#'       with respect to \code{direction}, i.e. quantiles or probabilities.
+#'     \item \code{distribution} : Specified distribution (determined when calling
+#'     \code{\link{ml_estimation}}).
+#'     \item \code{bounds} : Specified bound(s).
+#'     \item \code{direction} : Specified direction.
+#'     \item \code{cdf_estimation_method} : A character that is always
+#'       \code{NA_character}. For the generic visualization functions this
+#'       column has to be provided.
+#'   }
+#'
+#' @seealso \code{\link{confint_fisher}}
+#'
+#' @examples
+#' # Vectors:
+#' obs <- seq(10000, 100000, 10000)
+#' status_1 <- c(0, 1, 1, 0, 0, 0, 1, 0, 1, 0)
+#'
+#' cycles <- alloy$cycles
+#' status_2 <- alloy$status
+#'
+#'
+#' # Model estimation with ml_estimation():
+#' ml <- ml_estimation(
+#'   x = obs,
+#'   status = status_1,
+#'   distribution = "weibull",
+#'   conf_level = 0.90
+#' )
+#'
+#' ml_2 <- ml_estimation(
+#'   x = cycles,
+#'   status = status_2,
+#'   distribution = "lognormal3"
+#' )
+#'
+#' # Example 1 - Two-sided 95% confidence interval for probabilities ('y'):
+#' conf_fisher_1 <- confint_fisher(
+#'   x = obs,
+#'   status = status_1,
+#'   dist_params = ml$coefficients,
+#'   dist_varcov = ml$varcov,
+#'   distribution = "weibull",
+#'   bounds = "two_sided",
+#'   conf_level = 0.95,
+#'   direction = "y"
+#' )
+#'
+#' # Example 2 - One-sided lower/upper 90% confidence interval for quantiles ('x'):
+#' conf_fisher_2_1 <- confint_fisher(
+#'   x = obs,
+#'   status = status_1,
+#'   dist_params = ml$coefficients,
+#'   dist_varcov = ml$varcov,
+#'   distribution = "weibull",
+#'   bounds = "lower",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' conf_fisher_2_2 <- confint_fisher(
+#'   x = obs,
+#'   status = status_1,
+#'   dist_params = ml$coefficients,
+#'   dist_varcov = ml$varcov,
+#'   distribution = "weibull",
+#'   bounds = "upper",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' # Example 3 - Two-sided 90% confidence intervals for both directions using
+#' # a three-parametric model:
+#'
+#' conf_fisher_3_1 <- confint_fisher(
+#'   x = cycles,
+#'   status = status_2,
+#'   dist_params = ml_2$coefficients,
+#'   dist_varcov = ml_2$varcov,
+#'   distribution = "lognormal3",
+#'   bounds = "two_sided",
+#'   conf_level = 0.90,
+#'   direction = "y"
+#' )
+#'
+#' conf_fisher_3_2 <- confint_fisher(
+#'   x = cycles,
+#'   status = status_2,
+#'   dist_params = ml_2$coefficients,
+#'   dist_varcov = ml_2$varcov,
+#'   distribution = "lognormal3",
+#'   bounds = "two_sided",
+#'   conf_level = 0.90,
+#'   direction = "x"
+#' )
+#'
+#' @export
+confint_fisher.default <- function(x,
+                                   status,
+                                   dist_params,
+                                   dist_varcov,
+                                   distribution = c(
+                                     "weibull", "lognormal", "loglogistic",
+                                     "normal", "logistic", "sev",
+                                     "weibull3", "lognormal3", "loglogistic3"
+                                   ),
+                                   b_lives = c(0.01, 0.1, 0.50),
+                                   bounds = c("two_sided", "lower", "upper"),
+                                   conf_level = 0.95,
+                                   direction = c("y", "x"),
+                                   ...
+) {
 
   bounds <- match.arg(bounds)
   direction <- match.arg(direction)
   distribution <- match.arg(distribution)
 
-  if (!(distribution %in% c("weibull", "lognormal", "loglogistic", "normal",
-                            "logistic", "sev", "weibull3", "lognormal3",
-                            "loglogistic3"))) {
-    stop("No valid distribution!")
-  }
+  # Fake model_estimation
+  model_estimation <- list(
+    data = tibble::tibble(
+      x = x, status = status, cdf_estimation_method = NA_character_
+    ),
+    coefficients = dist_params,
+    varcov = dist_varcov,
+    distribution = distribution
+  )
+
+  confint_fisher_(
+    model_estimation = model_estimation,
+    b_lives = b_lives,
+    bounds = bounds,
+    conf_level = conf_level,
+    direction = direction
+  )
+}
+
+
+
+confint_fisher_ <- function(model_estimation,
+                            b_lives,
+                            bounds,
+                            conf_level,
+                            direction
+) {
+
+  x <- model_estimation$data$x
+  status <- model_estimation$data$status
+  dist_params <- model_estimation$coefficients
+  dist_varcov <- model_estimation$varcov
+  distribution <- model_estimation$distribution
 
   n <- length(x)
-  x_ob <- x[event == 1]
+  x_ob <- x[status == 1]
 
-  x_min <- min(x_ob, na.rm = TRUE)
-  x_max <- max(x_ob, na.rm = TRUE)
-  x_seq <- seq(x_min, x_max, length.out = 100)
+  x_y_b_lives <- add_b_lives(x_ob, dist_params, distribution, b_lives)
 
-  y_seq <- predict_prob(q = x_seq, loc_sc_params = loc_sc_params,
-    distribution = distribution)
-
-  b_perc <- c(0.01, 0.1, 0.50)
-  int_ind <- findInterval(x = b_perc, vec = c(y_seq[1], y_seq[length(y_seq)]),
-    rightmost.closed = TRUE)
-
-  y_seq <- unique(c(y_seq, b_perc[which(int_ind == 1)]))
-  y_seq <- y_seq[order(y_seq)]
-
-  x <- predict_quantile(p = y_seq, loc_sc_params = loc_sc_params,
-    distribution = distribution)
+  x_seq <- x_y_b_lives$x_seq
+  y_seq <- x_y_b_lives$y_seq
 
   if (direction == "x") {
-    se_delta <- sapply(y_seq, delta_method, loc_sc_params = loc_sc_params,
-                       loc_sc_varcov = loc_sc_varcov,
-                       distribution = distribution, direction = direction)
+    se_delta <- delta_method(
+      p = y_seq,
+      dist_params = dist_params,
+      dist_varcov = dist_varcov,
+      distribution = distribution,
+      direction = direction
+    )
 
     if (bounds == "two_sided") {
-      w <- exp((stats::qnorm((1 + conf_level) / 2) * se_delta) / x)
-      conf_up <- x * w
-      conf_low <- x / w
+      w <- exp((stats::qnorm((1 + conf_level) / 2) * se_delta) / x_seq)
+      conf_up <- x_seq * w
+      conf_low <- x_seq / w
       list_confint <- list(lower_bound = conf_low, upper_bound = conf_up)
     } else if (bounds == "lower") {
-      w <- exp((stats::qnorm(conf_level) * se_delta) / x)
-      conf_low <- x / w
+      w <- exp((stats::qnorm(conf_level) * se_delta) / x_seq)
+      conf_low <- x_seq / w
       list_confint <- list(lower_bound = conf_low)
     } else {
-      w <- exp((stats::qnorm(conf_level) * se_delta) / x)
-      conf_up <- x * w
+      w <- exp((stats::qnorm(conf_level) * se_delta) / x_seq)
+      conf_up <- x_seq * w
       list_confint <- list(upper_bound = conf_up)
     }
-    list_output <- c(list(characteristic = x, prob = y_seq, std_err = se_delta),
+
+    list_output <- c(list(x = x_seq, prob = y_seq, std_err = se_delta),
                      list_confint)
-    df_output <- as.data.frame(list_output)
+
+    tbl_out <- tibble::as_tibble(list_output)
   } else {
     # Standard errors for z:
-    se_delta <- sapply(x, delta_method, loc_sc_params = loc_sc_params,
-      loc_sc_varcov = loc_sc_varcov,
-      distribution = distribution, direction = direction)
+    se_delta <- delta_method(
+      p = x_seq,
+      dist_params = dist_params,
+      dist_varcov = dist_varcov,
+      distribution = distribution,
+      direction = direction
+    )
 
     # Standardized Random Variable:
     if (distribution %in% c("weibull", "lognormal", "loglogistic")) {
-      z <- (log(x) - loc_sc_params[[1]]) / loc_sc_params[[2]]
+      z <- (log(x_seq) - dist_params[[1]]) / dist_params[[2]]
     }
     if (distribution %in% c("weibull3", "lognormal3", "loglogistic3")) {
-      z <- (log(x - loc_sc_params[[3]]) - loc_sc_params[[1]]) / loc_sc_params[[2]]
+      z <- (log(x_seq - dist_params[[3]]) - dist_params[[1]]) / dist_params[[2]]
     }
     if (distribution %in% c("sev", "normal", "logistic")) {
-      z <- (x - loc_sc_params[[1]]) / loc_sc_params[[2]]
+      z <- (x_seq - dist_params[[1]]) / dist_params[[2]]
     }
 
     # Calculating confidence intervals:
@@ -663,6 +1137,7 @@ confint_fisher <- function(x, event, loc_sc_params, loc_sc_varcov,
         conf_low <- stats::plogis(z - w)
       }
       list_confint <- list(lower_bound = conf_low)
+
     } else {
       w <- stats::qnorm(conf_level) * se_delta
       if (distribution %in% c("weibull", "weibull3", "sev")) {
@@ -675,9 +1150,64 @@ confint_fisher <- function(x, event, loc_sc_params, loc_sc_varcov,
         conf_up <- stats::plogis(z + w)
       }
       list_confint <- list(upper_bound = conf_up)
+
     }
-    list_output <- c(list(characteristic = x, prob = y_seq, std_err = se_delta),
-      list_confint)
-    df_output <- as.data.frame(list_output)
+
+    list_output <- c(list(x = x_seq, prob = y_seq, std_err = se_delta),
+                     list_confint)
+
+    tbl_out <- tibble::as_tibble(list_output)
   }
+
+  tbl_out <- tbl_out %>%
+    dplyr::mutate(
+      distribution = distribution,
+      bounds = bounds,
+      direction = direction,
+      cdf_estimation_method = NA_character_
+    )
+
+  if (inherits(model_estimation, "wt_model_estimation")) {
+    # Only add model_estimation if not faked by .default
+    attr(tbl_out, "model_estimation") <- model_estimation
+  }
+
+  # Make output usable for generics
+  class(tbl_out) <- c("wt_confint", class(tbl_out))
+
+  return(tbl_out)
+}
+
+
+
+add_b_lives <- function(x,
+                        dist_params,
+                        distribution,
+                        b_lives
+) {
+
+  # Range of failed items:
+  x_min <- min(x, na.rm = TRUE)
+  x_max <- max(x, na.rm = TRUE)
+  x_seq <- seq(x_min, x_max, length.out = 100)
+
+  # Range of probabilities calculated with estimated regression line:
+  y_seq <- predict_prob(q = x_seq, dist_params = dist_params,
+                        distribution = distribution)
+
+  # Looking for B lives in range of estimated ones:
+  b_lives_present <- b_lives[b_lives >= y_seq[1] & b_lives <= y_seq[length(y_seq)]]
+
+  # Add them:
+  y_seq <- sort(unique(c(y_seq, b_lives_present)))
+  x_seq <- predict_quantile(
+    p = y_seq,
+    dist_params = dist_params,
+    distribution = distribution
+  )
+
+  list(
+    x_seq = x_seq,
+    y_seq = y_seq
+  )
 }

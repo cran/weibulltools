@@ -7,30 +7,36 @@
 dist_delay_report(date_repair, date_report, distribution = "lognormal")
 }
 \arguments{
-\item{date_repair}{a vector of class \code{"character"} or \code{"Date"}, in the
+\item{date_repair}{a vector of class \code{character} or \code{Date}, in the
 format "yyyy-mm-dd", indicating the date of repair of a failed unit.
-If no date is available use \code{NA}.}
+Use \code{NA} for missing elements.}
 
-\item{date_report}{a vector of class \code{"character"} or \code{"Date"}, in the
+\item{date_report}{a vector of class \code{character} or \code{Date}, in the
 format "yyyy-mm-dd", indicating the date of report of a failed unit.
-If no date is available use \code{NA}.}
+Use \code{NA} for missing elements.}
 
-\item{distribution}{supposed distribution of the random variable. The default
-value is \code{"lognormal"}. So far no other distribution is implemented.}
+\item{distribution}{Supposed distribution of the random variable. Only
+\code{"lognormal"} is implemented.}
 }
 \value{
 A named vector of estimated parameters for the specified
-  distribution.
+distribution.
 }
 \description{
+\ifelse{html}{\figure{lifecycle-soft-deprecated.svg}{options: alt='Soft-deprecated lifecycle'}}{\strong{Soft-deprecated}}
+
+\code{dist_delay_report()} is no longer under active development, switching
+to \code{\link{dist_delay}} is recommended.
+}
+\details{
 This function introduces a delay random variable by calculating the time
 difference between the report and repair date for the sample units
 and afterwards estimates the parameter(s) of a supposed distribution,
-using MLE.
+using maximum likelihood.
 }
 \examples{
 date_of_repair <- c(NA, "2014-09-15", "2015-07-04", "2015-04-10", NA,
-                   NA, "2015-04-24", NA, "2015-04-25", "2015-04-24",
+                    NA, "2015-04-24", NA, "2015-04-25", "2015-04-24",
                     "2015-06-12", NA, "2015-05-04", NA, NA,
                     "2015-05-22", NA, "2015-09-17", NA, "2015-08-15",
                     "2015-11-26", NA, NA)
@@ -41,7 +47,10 @@ date_of_report <- c(NA, "2014-10-09", "2015-08-28", "2015-04-15", NA,
                     "2015-06-05", NA, "2015-10-17", NA, "2015-08-21",
                     "2015-12-02", NA, NA)
 
-params_delay_report  <- dist_delay_report(date_repair = date_of_repair,
-                                            date_report = date_of_report,
-                                            distribution = "lognormal")
+params_delay_report  <- dist_delay_report(
+  date_repair = date_of_repair,
+  date_report = date_of_report,
+  distribution = "lognormal"
+)
+
 }

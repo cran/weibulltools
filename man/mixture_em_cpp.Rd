@@ -5,8 +5,16 @@
 \alias{mixture_em_cpp}
 \title{EM-Algorithm using Newton-Raphson Method}
 \usage{
-mixture_em_cpp(x, event, post, distribution = "weibull", k = 2L,
-  method = "EM", n_iter = 100L, conv_limit = 1e-06)
+mixture_em_cpp(
+  x,
+  status,
+  post,
+  distribution = "weibull",
+  k = 2L,
+  method = "EM",
+  n_iter = 100L,
+  conv_limit = 1e-06
+)
 }
 \arguments{
 \item{x}{a numeric vector which consists of lifetime data. Lifetime
@@ -14,10 +22,10 @@ data could be every characteristic influencing the reliability of a product,
 e.g. operating time (days/months in service), mileage (km, miles), load
 cycles.}
 
-\item{event}{a vector of binary data (0 or 1) indicating whether unit \emph{i}
+\item{status}{a vector of binary data (0 or 1) indicating whether unit \emph{i}
 is a right censored observation (= 0) or a failure (= 1).}
 
-\item{post}{a numeric matrix specifiying initial a-posteriori probabilities.
+\item{post}{a numeric matrix specifying initial a-posteriori probabilities.
 The number of rows have to be in line with observations \code{x} and the
 number of columns must equal the mixture components \code{k}.}
 
@@ -53,29 +61,8 @@ Weibull distributions. The Weibull distributions are parameterized with scale
 Newton-Raphson. This function is implemented in c++ and is called in function
 \code{\link{mixmod_em}}.
 }
-\examples{
-# Data is taken from given reference:
-hours <- c(2, 28, 67, 119, 179, 236, 282, 317, 348, 387, 3, 31, 69, 135,
-          191, 241, 284, 318, 348, 392, 5, 31, 76, 144, 203, 257, 286,
-          320, 350, 412, 8, 52, 78, 157, 211, 261, 298, 327, 360, 446,
-          13, 53, 104, 160, 221, 264, 303, 328, 369, 21, 64, 113, 168,
-          226, 278, 314, 328, 377)
-state <- c(1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1,
-         1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0,
-         1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-         0, 1, 1, 1, 1, 1, 1)
-post_dirichlet <- LearnBayes::rdirichlet(n = length(hours),
-                                         par = rep(.1, 2))
-mix_mod_em <- mixture_em_cpp(x = hours,
-                             event = state,
-                             post = post_dirichlet,
-                             distribution = "weibull",
-                             k = 2,
-                             method = "EM",
-                             n_iter = 150)
-
-}
 \references{
 Doganaksoy, N.; Hahn, G.; Meeker, W. Q., Reliability Analysis by
   Failure Mode, Quality Progress, 35(6), 47-52, 2002
 }
+\keyword{internal}

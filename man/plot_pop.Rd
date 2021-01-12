@@ -2,52 +2,105 @@
 % Please edit documentation in R/plot_functions.R
 \name{plot_pop}
 \alias{plot_pop}
-\title{Add Population Line to an Existing Grid}
+\title{Add Population Line(s) to an Existing Grid}
 \usage{
-plot_pop(p_obj, x, params, distribution = c("weibull", "lognormal",
-  "loglogistic"), color = I("#FF0000"), title_trace = "Population")
+plot_pop(
+  p_obj = NULL,
+  x,
+  dist_params_tbl,
+  distribution = c("weibull", "lognormal", "loglogistic", "normal", "logistic", "sev"),
+  tol = 1e-06,
+  title_trace = "Population",
+  plot_method = c("plotly", "ggplot2")
+)
 }
 \arguments{
-\item{p_obj}{a plotly object, which at least includes the layout provided
-by \code{\link{plot_layout}}.}
+\item{p_obj}{A plot object to which the population lines are added or
+\code{NULL}. If \code{NULL} the population lines are plotted in an empty grid.}
 
-\item{x}{a numeric vector containing the x-coordinates of the population line.}
+\item{x}{A numeric vector of length two or greater used for the x coordinates
+of the population line. If \code{length(x) == 2} a sequence of length 200
+between \code{x[1]} and \code{x[2]} is created. This sequence is equidistant
+with respect to the scale of the x axis. If \code{length(x) > 2} the elements
+of \code{x} are the x coordinates of the population line.}
 
-\item{params}{a (named) numeric vector, where the first entry is the location
-parameter \eqn{\mu} and the second entry is the scale parameter \eqn{\sigma}
-of a lognormal or loglogistic distribution. If the distribution value is
-\code{"weibull"} the first entry must be the scale parameter \eqn{\eta} and
-the second entry must be the shape parameter \eqn{\beta}. Parametrization
-is the same used in \code{\link{rweibull}}.}
+\item{dist_params_tbl}{A tibble. See 'Details'.}
 
-\item{distribution}{supposed distribution of the random variable. The
-value can be \code{"weibull"}, \code{"lognormal"} or \code{"loglogistic"}.
-Other distributions have not been implemented yet.}
+\item{distribution}{Supposed distribution of the random variable. In the
+context of this function \code{"weibull"}, \code{"lognormal"} and
+\code{"loglogistic"} stand for the two- \strong{and} the three-parametric
+version of the respective distribution. The distinction is made via
+\code{dist_params_tbl}.}
 
-\item{color}{the color of the population line should be added as follows:
-For hexadecimal codes: \code{color = I("#3C8DBC")} and for a color specified
-with a string: \code{color = I("blue")}.}
+\item{tol}{The failure probability is restricted to the interval
+\eqn{[tol, 1 - tol]}. The default value is in accordance with the decimal
+places shown in the hover for \code{plot_method = "plotly"}.}
 
-\item{title_trace}{a character string which is assigned to the trace shown in
+\item{title_trace}{A character string which is assigned to the trace shown in
 the legend.}
+
+\item{plot_method}{Plot package, which produces the visual output. Only
+used with \code{p_obj = NULL}, otherwise \code{p_obj} is used to determine
+the plot method.}
 }
 \value{
-A plotly object which contains the supposed linearized population
-  CDF. Failure probabilities must be strictly below 1 and for this very reason
+A plot object which contains the linearized CDF(s).
 }
 \description{
-This function adds a linearized CDF to an existing plotly grid.
+This function adds one or multiple linearized CDFs to an existing plot grid.
+}
+\details{
+\code{dist_params_tbl} is a data.frame with two or three columns. For
+location-scale distributions the first column contains the location parameter
+and the second column contains the scale parameter. For three-parametric
+distributions the third column contains the threshold parameter.
+
+If only one population line should be displayed, a numeric vector of length
+two or three is also supported (\code{c(loc, sc)} or \code{c(loc, sc, thres)}).
 }
 \examples{
 x <- rweibull(n = 100, shape = 1, scale = 20000)
-grid_weibull <- plot_layout(x = x,
-                            distribution = "weibull",
-                            title_main = "Weibull Analysis",
-                            title_x = "Time to Failure",
-                            title_y = "Failure Probability")
-pop_weibull <- plot_pop(p_obj = grid_weibull,
-                        x = x, params = c(20000, 1),
-                        distribution = "weibull", color = I("green"),
-                        title_trace = "Population")
+
+# Example 1 - Two-parametric straight line:
+pop_weibull <- plot_pop(
+  p_obj = NULL,
+  x = range(x),
+  dist_params_tbl = c(log(20000), 1),
+  distribution = "weibull"
+)
+
+# Example 2 - Three-parametric curved line:
+x2 <- rweibull(n = 100, shape = 1, scale = 20000) + 5000
+
+pop_weibull_2 <- plot_pop(
+  p_obj = NULL,
+  x = x2,
+  dist_params_tbl = c(log(20000 - 5000), 1, 5000),
+  distribution = "weibull"
+)
+
+# Example 3 - Multiple lines:
+pop_weibull_3 <- plot_pop(
+  p_obj = NULL,
+  x = x,
+  dist_params_tbl = data.frame(
+    p_1 = c(log(20000), log(20000), log(20000)),
+    p_2 = c(1, 1.5, 2)
+    ),
+  distribution = "weibull",
+  plot_method = "ggplot2"
+)
+
+# Example 4 - Compare two- and three-parametric distributions:
+pop_weibull_4 <- plot_pop(
+  p_obj = NULL,
+  x = x,
+  dist_params_tbl = data.frame(
+    param_1 = c(log(20000), log(20000)),
+    param_2 = c(1, 1),
+    param_3 = c(NA, 2)
+  ),
+  distribution = "weibull"
+)
 
 }

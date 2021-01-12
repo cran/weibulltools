@@ -3,147 +3,95 @@
 \encoding{UTF-8}
 \name{plot_conf}
 \alias{plot_conf}
-\title{Add Confidence Region(s) for Quantiles or Probabilities}
+\alias{plot_conf.wt_confint}
+\title{Add Confidence Region(s) for Quantiles and Probabilities}
 \usage{
-plot_conf(p_obj, x, y, direction = c("y", "x"),
-  distribution = c("weibull", "lognormal", "loglogistic", "normal",
-  "logistic", "sev", "weibull3", "lognormal3", "loglogistic3"),
-  title_trace = "Confidence Limit")
+plot_conf(p_obj, x, ...)
+
+\method{plot_conf}{wt_confint}(
+  p_obj,
+  x,
+  title_trace_mod = "Fit",
+  title_trace_conf = "Confidence Limit",
+  ...
+)
 }
 \arguments{
-\item{p_obj}{a plotly object provided by function \code{\link{plot_mod}}.}
+\item{p_obj}{A plot object returned from \code{\link{plot_prob}}.}
 
-\item{x}{a list containing the x-coordinates of the confidence region(s).
-The list can be of length 1 or 2. For more information see \strong{Details}.}
+\item{x}{Confidence interval as returned by \code{\link{confint_betabinom}}
+or \code{\link{confint_fisher}}.}
 
-\item{y}{a list containing the y-coordinates of the Confidence Region(s).
-The list can be of length 1 or 2. For more information see \strong{Details}.}
+\item{...}{Further arguments passed to or from other methods. Currently not used.}
 
-\item{direction}{a character string specifying the direction of the plotted
-interval(s). Must be either "y" (failure probabilities) or "x" (quantiles).}
+\item{title_trace_mod}{A character string which is assigned to the mod trace
+in the legend.}
 
-\item{distribution}{supposed distribution of the random variable. The
-value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-\code{"normal"}, \code{"logistic"}, \code{"sev"} \emph{(smallest extreme value)},
-\code{"weibull3"}, \code{"lognormal3"} or \code{"loglogistic3"}.
-Other distributions have not been implemented yet.}
-
-\item{title_trace}{a character string which is assigned to the trace shown in
-the legend.}
+\item{title_trace_conf}{A character string which is assigned to the conf trace
+in the legend.}
 }
 \value{
-Returns a plotly object containing the probability plot with
+Returns a plot object containing the probability plot with
   plotting positions, the estimated regression line and the estimated
   confidence region(s).
 }
 \description{
 This function is used to add estimated confidence region(s) to an existing
-probability plot which also includes the estimated regression line.
-}
-\details{
-It is important that the length of the vectors provided as lists in \code{x}
-and \code{y} match with the length of the vectors \code{x} and \code{y} in
-the function \code{\link{plot_mod}}. For this reason the following procedure
-is recommended:
-\itemize{
-  \item Calculate confidence intervals with the function
-    \code{\link{confint_betabinom}} or \code{\link{confint_fisher}} and store
-    it in a \code{data.frame}. For instance call it df.
-  \item Inside \code{\link{plot_mod}} use the output \code{df$characteristic}
-    for \code{x} and \code{df$prob} for \code{y} of the function(s) named before.
-  \item In \strong{Examples} the described approach is shown with code.}
+probability plot. Since confidence regions are related to the estimated
+regression line, the latter is provided as well.
 }
 \examples{
-# Alloy T7987 dataset taken from Meeker and Escobar(1998, p. 131)
-cycles   <- c(300, 300, 300, 300, 300, 291, 274, 271, 269, 257, 256, 227, 226,
-              224, 213, 211, 205, 203, 197, 196, 190, 189, 188, 187, 184, 180,
-              180, 177, 176, 173, 172, 171, 170, 170, 169, 168, 168, 162, 159,
-              159, 159, 159, 152, 152, 149, 149, 144, 143, 141, 141, 140, 139,
-              139, 136, 135, 133, 131, 129, 123, 121, 121, 118, 117, 117, 114,
-              112, 108, 104, 99, 99, 96, 94)
-state <- c(rep(0, 5), rep(1, 67))
-id <- 1:length(cycles)
+# Reliability data:
+data <- reliability_data(data = alloy, x = cycles, status = status)
 
-df_john <- johnson_method(x = cycles, event = state, id = id)
-# Example 1: Probability Plot, Regression Line and Confidence Bounds for Three-Parameter-Weibull:
-mrr <- rank_regression(x = df_john$characteristic,
-                       y = df_john$prob,
-                       event = df_john$status,
-                       distribution = "weibull3",
-                       conf_level = .90)
+# Probability estimation:
+prob_tbl <- estimate_cdf(data, methods = "johnson")
 
-conf_betabin <- confint_betabinom(x = df_john$characteristic,
-                                  event = df_john$status,
-                                  loc_sc_params = mrr$loc_sc_coefficients,
-                                  distribution = "weibull3",
-                                  bounds = "two_sided",
-                                  conf_level = 0.95,
-                                  direction = "y")
+# Example 1 - Probability Plot, Regression Line and Confidence Bounds for Three-Parameter-Weibull:
+rr <- rank_regression(prob_tbl, distribution = "weibull3")
 
-plot_weibull <- plot_prob(x = df_john$characteristic,
-                          y = df_john$prob,
-                          event = df_john$status,
-                          id = df_john$id,
-                          distribution = "weibull",
-                          title_main = "Three-Parametric Weibull",
-                          title_x = "Cycles",
-                          title_y = "Probability of Failure in \%",
-                          title_trace = "Failed Items")
+conf_betabin <- confint_betabinom(rr)
 
-plot_reg_weibull <- plot_mod(p_obj = plot_weibull,
-                             x = conf_betabin$characteristic,
-                             y = conf_betabin$prob,
-                             loc_sc_params = mrr$loc_sc_coefficients,
-                             distribution = "weibull3",
-                             title_trace = "Estimated Weibull CDF")
+plot_weibull <- plot_prob(prob_tbl, distribution = "weibull")
 
-plot_conf_beta <- plot_conf(p_obj = plot_reg_weibull,
-                            x = list(conf_betabin$characteristic),
-                            y = list(conf_betabin$lower_bound,
-                                     conf_betabin$upper_bound),
-                            direction = "y",
-                            distribution = "weibull3",
-                            title_trace = "Confidence Region")
+plot_conf_beta <- plot_conf(
+  p_obj = plot_weibull,
+  x = conf_betabin
+)
 
-# Example 2: Probability Plot, Regression Line and Confidence Bounds for Three-Parameter-Lognormal:
-mrr_ln <- rank_regression(x = df_john$characteristic,
-                       y = df_john$prob,
-                       event = df_john$status,
-                       distribution = "lognormal3",
-                       conf_level = .90)
+# Example 2 - Probability Plot, Regression Line and Confidence Bounds for Three-Parameter-Lognormal:
+rr_ln <- rank_regression(
+  prob_tbl,
+  distribution = "lognormal3",
+  conf_level = 0.9
+)
 
-conf_betabin_ln <- confint_betabinom(x = df_john$characteristic,
-                                  event = df_john$status,
-                                  loc_sc_params = mrr_ln$loc_sc_coefficients,
-                                  distribution = "lognormal3",
-                                  bounds = "two_sided",
-                                  conf_level = 0.95,
-                                  direction = "y")
+conf_betabin_ln <- confint_betabinom(
+  rr_ln,
+  bounds = "two_sided",
+  conf_level = 0.9,
+  direction = "y"
+)
 
-plot_lognormal <- plot_prob(x = df_john$characteristic,
-                          y = df_john$prob,
-                          event = df_john$status,
-                          id = df_john$id,
-                          distribution = "lognormal",
-                          title_main = "Three-Parametric Lognormal",
-                          title_x = "Cycles",
-                          title_y = "Probability of Failure in \%",
-                          title_trace = "Failed Items")
+plot_lognormal <- plot_prob(prob_tbl, distribution = "lognormal")
 
-plot_reg_lognormal <- plot_mod(p_obj = plot_lognormal,
-                             x = conf_betabin_ln$characteristic,
-                             y = conf_betabin_ln$prob,
-                             loc_sc_params = mrr_ln$loc_sc_coefficients,
-                             distribution = "lognormal3",
-                             title_trace = "Estimated Lognormal CDF")
+plot_conf_beta_ln <- plot_conf(
+  p_obj = plot_lognormal,
+  x = conf_betabin_ln
+)
 
-plot_conf_beta_ln <- plot_conf(p_obj = plot_reg_lognormal,
-                            x = list(conf_betabin_ln$characteristic),
-                            y = list(conf_betabin_ln$lower_bound,
-                                     conf_betabin_ln$upper_bound),
-                            direction = "y",
-                            distribution = "lognormal3",
-                            title_trace = "Confidence Region")
+# Example 3 - Probability Plot, Regression Line and Confidence Bounds for MLE
+ml <- ml_estimation(data, distribution = "weibull")
+
+conf_fisher <- confint_fisher(ml)
+
+plot_weibull <- plot_prob(prob_tbl, distribution = "weibull")
+
+plot_conf_fisher_weibull <- plot_conf(
+  p_obj = plot_weibull,
+  x = conf_fisher
+)
+
 }
 \references{
 Meeker, William Q; Escobar, Luis A., Statistical methods for

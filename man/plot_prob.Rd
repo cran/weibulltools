@@ -3,95 +3,129 @@
 \encoding{UTF-8}
 \name{plot_prob}
 \alias{plot_prob}
+\alias{plot_prob.wt_model}
+\alias{plot_prob.wt_cdf_estimation}
 \title{Probability Plotting Method for Univariate Lifetime Distributions}
 \usage{
-plot_prob(x, y, event, id = rep("XXXXXX", length(x)),
-  distribution = c("weibull", "lognormal", "loglogistic", "normal",
-  "logistic", "sev"), title_main = "Probability Plot",
-  title_x = "Characteristic", title_y = "Unreliability",
-  title_trace = "Sample")
+plot_prob(x, ...)
+
+\method{plot_prob}{wt_model}(
+  x,
+  distribution = c("weibull", "lognormal", "loglogistic", "normal", "logistic", "sev"),
+  title_main = "Probability Plot",
+  title_x = "Characteristic",
+  title_y = "Unreliability",
+  title_trace = "Sample",
+  plot_method = c("plotly", "ggplot2"),
+  ...
+)
+
+\method{plot_prob}{wt_cdf_estimation}(
+  x,
+  distribution = c("weibull", "lognormal", "loglogistic", "normal", "logistic", "sev"),
+  title_main = "Probability Plot",
+  title_x = "Characteristic",
+  title_y = "Unreliability",
+  title_trace = "Sample",
+  plot_method = c("plotly", "ggplot2"),
+  ...
+)
 }
 \arguments{
-\item{x}{a numeric vector which consists of lifetime data. Lifetime
-data could be every characteristic influencing the reliability of a product,
-e.g. operating time (days/months in service), mileage (km, miles), load
-cycles.}
+\item{x}{An object of class \code{wt_cdf_estimation} or
+\code{wt_model}.}
 
-\item{y}{a numeric vector which consists of estimated failure probabilities
-regarding the lifetime data in \code{x}.}
+\item{...}{Further arguments passed to or from other methods. Currently not used.}
 
-\item{event}{a vector of binary data (0 or 1) indicating whether unit \emph{i}
-is a right censored observation (= 0) or a failure (= 1).}
+\item{distribution}{Supposed distribution of the random variable.}
 
-\item{id}{a character vector for the identification of every unit.}
-
-\item{distribution}{supposed distribution of the random variable. The
-value can be \code{"weibull"}, \code{"lognormal"}, \code{"loglogistic"},
-\code{"normal"}, \code{"logistic"} or \code{"sev"} \emph{(smallest extreme value)}.
-Other distributions have not been implemented yet.}
-
-\item{title_main}{a character string which is assigned to the main title
+\item{title_main}{A character string which is assigned to the main title
 of the plot.}
 
-\item{title_x}{a character string which is assigned to the title of the
+\item{title_x}{A character string which is assigned to the title of the
 x axis.}
 
-\item{title_y}{a character string which is assigned to the title of the
+\item{title_y}{A character string which is assigned to the title of the
 y axis.}
 
-\item{title_trace}{a character string whis is assigned to the trace shown in
+\item{title_trace}{A character string which is assigned to the trace shown in
 the legend.}
+
+\item{plot_method}{Package, which is used for generating the plot output.}
 }
 \value{
-Returns a plotly object containing the layout of the probability plot
-  provided by \code{\link{plot_layout}} and the plotting positions.
+Returns a plot object containing the probability plot.
 }
 \description{
 This function is used to apply the graphical technique of probability
 plotting.
 }
 \details{
-The marker label for x is determined by the first word provided in the
-argument \code{title_x}, i.e. if \code{title_x = "Mileage in km"} the x label
-of the marker is "Mileage".
+If \code{x} was split by \code{\link{mixmod_em}}, \code{\link{estimate_cdf}} with
+method \code{"johnson"} is applied to subgroup-specific data. The
+calculated plotting positions are shaped according to the determined split in
+\code{\link{mixmod_em}}.
 
-The marker label for y is determined by the string provided in the
-argument \code{title_y}, i.e. if \code{title_y = "Probability in percent"} the y
-label of the marker is "Probability".
+In \code{\link{mixmod_regression}} a maximum of three subgroups can be determined
+and thus being plotted. The intention of this function is to give the
+user a hint for the existence of a mixture model. An in-depth analysis should
+be done afterwards.
+
+The marker label for x and y are determined by the first word provided in the
+argument \code{title_x} and \code{title_y} respectively, i.e. if
+\code{title_x = "Mileage in km"} the x label of the marker is "Mileage".
+
+The name of the legend entry is a combination of the \code{title_trace} and
+the number of determined subgroups (if any). If \code{title_trace = "Group"}
+and the data has been split in two groups, the legend entries are "Group: 1"
+and "Group: 2".
 }
 \examples{
-# Alloy T7987 dataset taken from Meeker and Escobar(1998, p. 131)
-cycles   <- c(300, 300, 300, 300, 300, 291, 274, 271, 269, 257, 256, 227, 226,
-              224, 213, 211, 205, 203, 197, 196, 190, 189, 188, 187, 184, 180,
-              180, 177, 176, 173, 172, 171, 170, 170, 169, 168, 168, 162, 159,
-              159, 159, 159, 152, 152, 149, 149, 144, 143, 141, 141, 140, 139,
-              139, 136, 135, 133, 131, 129, 123, 121, 121, 118, 117, 117, 114,
-              112, 108, 104, 99, 99, 96, 94)
-state <- c(rep(0, 5), rep(1, 67))
+# Reliability data:
+data <- reliability_data(
+  alloy,
+  x = cycles,
+  status = status
+)
 
-df_john <- johnson_method(x = cycles, event = state)
+# Probability estimation:
+prob_tbl <- estimate_cdf(
+  data,
+  methods = c("johnson", "kaplan")
+)
 
-# Example 1: Probability Plot Weibull:
-plot_weibull <- plot_prob(x = df_john$characteristic,
-                          y = df_john$prob,
-                          event = df_john$status,
-                          id = df_john$id,
-                          distribution = "weibull",
-                          title_main = "Weibull Analysis",
-                          title_x = "Cycles",
-                          title_y = "Probability of Failure in \%",
-                          title_trace = "Failed Items")
+# Example 1 - Probability Plot Weibull:
+plot_weibull <- plot_prob(prob_tbl)
 
-# Example 2: Probability Plot Lognormal:
-plot_lognormal <- plot_prob(x = df_john$characteristic,
-                          y = df_john$prob,
-                          event = df_john$status,
-                          id = df_john$id,
-                          distribution = "lognormal",
-                          title_main = "Lognormal Analysis",
-                          title_x = "Cycles",
-                          title_y = "Probability of Failure in \%",
-                          title_trace = "Failed Items")
+# Example 2 - Probability Plot Lognormal:
+plot_lognormal <- plot_prob(
+  x = prob_tbl,
+  distribution = "lognormal"
+)
+
+## Mixture identification
+# Reliability data:
+data_mix <- reliability_data(
+  voltage,
+  x = hours,
+  status = status
+)
+
+prob_mix <- estimate_cdf(
+  data_mix,
+  methods = c("johnson", "kaplan")
+)
+
+# Example 3 - Mixture identification using mixmod_regression:
+mix_mod_rr <- mixmod_regression(prob_mix)
+
+plot_mix_mod_rr <- plot_prob(x = mix_mod_rr)
+
+# Example 4 - Mixture identification using mixmod_em:
+mix_mod_em <- mixmod_em(data_mix)
+
+plot_mix_mod_em <- plot_prob(x = mix_mod_em)
+
 }
 \references{
 Meeker, William Q; Escobar, Luis A., Statistical methods for
