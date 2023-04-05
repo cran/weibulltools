@@ -1,3 +1,75 @@
+# weibulltools (development version)
+
+## Breaking Changes
+
+### Parametric Models
+* `rank_regression()`: For all distributions, the confidence intervals of the parameters are now computed on the basis of a heteroscedasticity-consistent (HC) covariance matrix. If the confidence intervals for the Weibull parameters are to be calculated according to *Mock*, this must be specified via the new argument `options`.  
+* `mixmod_regression()`: Since this function uses `rank_regression()`, the changes regarding the confidence intervals also apply here. 
+* `plot_prob.wt_model()`: Removed dysfunctional argument `distribution`. The distribution is inferred using the model `x`.
+
+### Confidence Intervals
+* `delta_method()`: Renamed argument `p` with `x`. 
+* `confint_betabinom()` and `confint_fisher()`: Removed constant features `distribution`, `bounds` and `direction` from the tibble output and added them as attributes instead.
+
+### Monte Carlo Simulation
+* `mcs_mileage()`: Changed name of output column `mileage` to `x` (in accordance with `reliability_data()`).
+* `mcs_delay()`: Changed name of output column `time` to `x` (in accordance with `reliability_data()`). 
+* `dist_mileage.default()` (former `dist_mileage()`): Renamed argument `mileage` with `x`.
+* `mcs_mileage.default()` (former `mcs_mileage()`): Renamed argument `mileage` with `x`.
+
+## New Features
+
+### Distributions 
+* Implementation of one- and two-parametric exponential distribution (`'exponential'` and `'exponential2'`).
+
+### Non-Parametric Failure Probabilities
+* `estimate_cdf()`: Added option `johnson_method` to specify the formula which is used for determining cumulative failure probabilities.
+
+### Parametric Models
+* `rank_regression()`: New arguments `direction` (specifies direction of dependency in the model), `control` (enables access to argument `control` in `optim()`) and `options` (method used to calculate the confidence intervals for the parameters, default is "HC").  
+* `r_squared_profiling()`: New argument `direction`. 
+* `ml_estimation()`: New arguments `start_dist_params` (optional vector with initial values of the parameters) and `control` (enables access to argument `control` in `optim()`).
+* `loglik_profiling()`: New argument `wts`. 
+* `loglik_profiling()` is now an S3 generic. `loglik_profiling()` becomes `loglik_profiling.default()`. Added `loglik_profiling.wt_reliability_data()`.
+* `loglik_function()` is now an S3 generic. `loglik_function()` becomes `loglik_function.default()`. Added `loglik_function.wt_reliability_data()`.
+
+### Confidence Intervals
+* `confint_betabinom()`: Methods `"kaplan"` and `"nelson"` of `estimate_cdf()` can be used for beta-binomial confidence bounds.
+
+### Monte Carlo Simulation
+* Added `mcs_mileage_data()`: Create consistent MCS data for `mcs_mileage()`.
+* Added `mcs_delay_data()`: Create consistent MCS data for `mcs_delay()`.
+* `dist_mileage()` is now an S3 generic. `dist_mileage()` becomes `dist_mileage.default()`. Added `dist_mileage.wt_mcs_mileage_data()`.
+* `dist_delay()` is now an S3 generic. `dist_delay()` becomes `dist_delay.default()`. Added `dist_delay.wt_mcs_delay_data()`.
+* `dist_delay()` now supports the estimation of multiple delay distributions at once. 
+* `mcs_mileage()` is now an S3 generic. `mcs_mileage()` becomes `mcs_mileage.default()`. Added `mcs_mileage.wt_mcs_mileage_data()`.
+* `mcs_delay()` is now an S3 generic. `mcs_delay()` becomes `mcs_delay.default()`. Added `mcs_delay.wt_mcs_delay_data()`.
+* Added `print.wt_mcs_delay_data()` and `print.wt_mcs_mileage_data()`.
+* Added `print.wt_mileage_estimation()`. 
+* Added `print.wt_delay_estimation()` for one delay and `print.wt_delay_estimation_list()` for multiple delays.
+
+## Lifecycle changes
+
+## Minor Improvements and bug fixes
+
+### Reliability Data 
+* Fixed bug in `reliability_data()`: Using `!!` syntax with arguments `x` and `status` resulted in an error.
+* `estimate_cdf()` preserves additional columns, that were returned from `reliability_data(..., .keep_all = TRUE)`.
+* Improved `print.wt_reliability_data()`.
+
+### Confidence Intervals
+* Fixed bug in `plot_conf()`: Wrong confidence bounds were displayed for `direction = "x"` (#181). 
+* Fixed bug in `plot_conf()`: `plot_method = "ggplot2"` and exactly one method in `estimate_cdf()` resulted in an error (#182).
+
+### Monte Carlo Simulation
+* The object returned by `mcs_mileage()` now has class `wt_mcs_mileage`.
+* The object returned by `mcs_delay()` now has class `wt_mcs_delay`. 
+* The object returned by `dist_mileage()` now has class `wt_mileage_estimation`. 
+* The object returned by `dist_delay()` now has class `wt_delay_estimation` or `wt_delay_estimation_list`. 
+
+## Documentation improvements
+* `plot_prob()`: Better work out the distinction between `plot_prob.wt_cdf_estimation()` and `plot_prob.wt_model()`. The former is applied to a CDF estimation whereas the latter is applied to a mixture model.
+
 # weibulltools v2.0.0
 ## Breaking Changes
 * Package now depends on R(>= 3.5.0)

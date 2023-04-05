@@ -12,8 +12,8 @@ data could be every characteristic influencing the reliability of a product,
 e.g. operating time (days/months in service), mileage (km, miles), load
 cycles.}
 
-\item{status}{A vector of binary data (0 or 1) indicating whether unit \emph{i}
-is a right censored observation (= 0) or a failure (= 1).}
+\item{status}{A vector of binary data (0 or 1) indicating whether a unit is
+a right censored observation (= 0) or a failure (= 1).}
 
 \item{id}{A vector for the identification of every unit. Default is \code{NULL}.}
 }
@@ -22,19 +22,19 @@ A tibble containing the following columns:
 \itemize{
 \item \code{id} : Identification for every unit.
 \item \code{x} : Lifetime characteristic.
-\item \code{status} : Binary data (0 or 1) indicating whether a unit is a
-right censored observation (= 0) or a failure (= 1).
+\item \code{status} : Binary data (0 or 1) indicating whether a unit is a right
+censored observation (= 0) or a failure (= 1).
 \item \code{rank} : Filled with \code{NA}.
 \item \code{prob} : Estimated failure probabilities, \code{NA} if \code{status = 0}.
-\item \code{cdf_estimation_method} : Specified method for the estimation of
-failure probabilities (always 'kaplan').
+\item \code{cdf_estimation_method} : Specified method for the estimation of failure
+probabilities (always 'kaplan').
 }
 }
 \description{
-\ifelse{html}{\figure{lifecycle-soft-deprecated.svg}{options: alt='Soft-deprecated lifecycle'}}{\strong{Soft-deprecated}}
+\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#soft-deprecated}{\figure{lifecycle-soft-deprecated.svg}{options: alt='[Soft-deprecated]'}}}{\strong{[Soft-deprecated]}}
 
-\code{kaplan_method()} is no longer under active development, switching
-to \code{\link{estimate_cdf}} is recommended.
+\code{kaplan_method()} is no longer under active development, switching to
+\link{estimate_cdf} is recommended.
 }
 \details{
 Whereas the non-parametric Kaplan-Meier estimator is used to estimate the
@@ -42,10 +42,6 @@ survival function \emph{S(t)} in terms of (multiple) right censored data, the
 complement is an estimate of the cumulative distribution function \emph{F(t)}.
 One modification is made in contrast to the original Kaplan-Meier estimator
 (see 'References').
-
-\strong{Note} : The \emph{Kaplan-Meier} estimator does not assign ranks to
-observations, so the beta-binomial confidence intervals \emph{cannot} be
-calculated using this method.
 }
 \examples{
 # Vectors:

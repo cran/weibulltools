@@ -10,80 +10,99 @@ rank_regression(x, ...)
 
 \method{rank_regression}{wt_cdf_estimation}(
   x,
-  distribution = c("weibull", "lognormal", "loglogistic", "normal", "logistic", "sev",
-    "weibull3", "lognormal3", "loglogistic3"),
+  distribution = c("weibull", "lognormal", "loglogistic", "sev", "normal", "logistic",
+    "weibull3", "lognormal3", "loglogistic3", "exponential", "exponential2"),
   conf_level = 0.95,
+  direction = c("x_on_y", "y_on_x"),
+  control = list(),
+  options = list(),
   ...
 )
 }
 \arguments{
-\item{x}{Object of class \code{wt_cdf_estimation} returned from
-\code{\link{estimate_cdf}}.}
+\item{x}{A \code{tibble} with class \code{wt_cdf_estimation} returned by \link{estimate_cdf}.}
 
 \item{...}{Further arguments passed to or from other methods. Currently not used.}
 
 \item{distribution}{Supposed distribution of the random variable.}
 
-\item{conf_level}{Confidence level of the interval. If \code{distribution} is
-\code{"weibull"} this must be one of \code{0.9}, \code{0.95} or \code{0.99}.}
+\item{conf_level}{Confidence level of the interval.}
+
+\item{direction}{Direction of the dependence in the regression model.}
+
+\item{control}{A list of control parameters (see \link[stats:optim]{optim}).
+
+\code{control} is in use only if a three-parametric distribution was specified.
+If this is the case, \code{optim} (always with \code{method = "L-BFGS-B"} and
+\code{control$fnscale = -1}) is called to determine the threshold parameter
+(see \link{r_squared_profiling}).}
+
+\item{options}{A list of named options. See 'Options'.}
 }
 \value{
-Returns a list with classes \code{wt_model}, \code{wt_rank_regression} and
-\code{wt_model_estimation} containing the following elements:
+A list with classes \code{wt_model}, \code{wt_rank_regression} and \code{wt_model_estimation}
+which contains:
 \itemize{
-  \item \code{coefficients} : A named vector of estimated coefficients
-    (parameters of the assumed distribution). \strong{Note}: The parameters
-    are given in location-scale-parameterization.
-  \item \code{confint} : Confidence intervals for parameters. If
-    \code{distribution} is \code{"lognormal3"} or \code{"loglogistic3"} no
-    confidence interval for the threshold parameter is computed.
-  \item \code{varcov} : Provided, if \code{distribution} is not
-    \code{"weibull"} or \code{"weibull3"}. Estimated heteroscedasticity-consistent
-    variance-covariance matrix for the (log-)location-scale parameters.
-  \item \code{shape_scale_coefficients} : Only included if
-    \code{distribution} is \code{"weibull"} or \code{"weibull3"}
-    (parameterization used in \code{\link[stats:Weibull]{stats::Weibull}}).
-  \item \code{shape_scale_confint} : Only included if \code{distribution} is
-    \code{"weibull"} or \code{"weibull3"}. Approximated confidence intervals
-    for scale \eqn{\eta} and shape \eqn{\beta} (and threshold \eqn{\gamma})
-    if \code{distribution} is \code{"weibull3"}.
-  \item \code{r_squared} : Coefficient of determination.
-  \item \code{data} : A tibble with class \code{wt_cdf_estimation} returned from \code{\link{estimate_cdf}}.
-  \item \code{distribution} : Specified distribution.
+\item \code{coefficients} : A named vector of estimated coefficients (parameters of the
+assumed distribution). \strong{Note}: The parameters are given in the
+(log-)location-scale-parameterization.
+\item \code{confint} : Confidence intervals for the (log-)location-scale parameters.
+For threshold distributions no confidence interval for the threshold parameter
+can be computed. If \code{direction = "y_on_x"}, back-transformed confidence
+intervals are provided.
+\item \code{shape_scale_coefficients} : Only included if \code{distribution} is \code{"weibull"}
+or \code{"weibull3"} (parameterization used in \link[stats:Weibull]{Weibull}).
+\item \code{shape_scale_confint} : Only included if \code{distribution} is \code{"weibull"}
+or \code{"weibull3"}. Approximated confidence intervals for scale \eqn{\eta} and
+shape \eqn{\beta} (and threshold \eqn{\gamma} if \code{distribution = "weibull3"}).
+\item \code{varcov} : Only provided if \code{options = list(conf_method = "HC")} (default).
+Estimated heteroscedasticity-consistent (\strong{HC}) variance-covariance matrix
+for the (log-)location-scale parameters.
+\item \code{r_squared} : Coefficient of determination.
+\item \code{data} : A \code{tibble} with class \code{wt_cdf_estimation} returned by \link{estimate_cdf}.
+\item \code{distribution} : Specified distribution.
+\item \code{direction} : Specified direction.
 }
 
-If more than one method was specified in \code{\link{estimate_cdf}},
-  the resulting output is a list with class \code{wt_model_estimation_list}.
-  In this case each list element has classes \code{wt_rank_regression} and
-  \code{wt_model_estimation} and the items listed above, are included.
+If more than one method was specified in \link{estimate_cdf}, the resulting output
+is a list with class \code{wt_model_estimation_list}. In this case, each list element
+has classes \code{wt_rank_regression} and \code{wt_model_estimation}, and the items listed
+above, are included.
 }
 \description{
-This function fits an \strong{x on y} regression to a linearized two- or
-three-parameter lifetime distribution for complete and (multiple) right
-censored data. The parameters are determined in the frequently used
-(log-)location-scale parameterization.
+This function fits a regression model to a linearized parametric lifetime
+distribution for complete and (multiple) right-censored data. The parameters
+are determined in the frequently used (log-)location-scale parameterization.
 
 For the Weibull, estimates are additionally transformed such that they are in
 line with the parameterization provided by the \emph{stats} package
-(see \link[stats]{Weibull}).
+(see \link[stats:Weibull]{Weibull}).
 }
 \details{
-If \code{distribution} is \code{"weibull"} or \code{"weibull3"}, the approximated
-confidence intervals for the parameters can only be estimated on the following
+The confidence intervals of the parameters are computed on the basis of a
+heteroscedasticity-consistent (\strong{HC}) covariance matrix. Here it should be
+said that there is no statistical foundation to determine the standard errors
+of the parameters using \emph{Least Squares} in context of \emph{Rank Regression}.
+For an accepted statistical method use \link[=ml_estimation]{maximum likelihood}.
+
+If \code{options = list(conf_method = "Mock")}, the argument \code{distribution} must be
+one of \code{"weibull"} and \code{"weibull3"}. The approximated confidence intervals
+for the Weibull parameters can then only be estimated on the following
 confidence levels (see 'References' \emph{(Mock, 1995)}):
 \itemize{
-  \item \code{conf_level} = 0.90,
-  \item \code{conf_level} = 0.95,
-  \item \code{conf_level} = 0.99.
+\item \code{conf_level = 0.90}
+\item \code{conf_level = 0.95}
+\item \code{conf_level = 0.99}
+}
+}
+\section{Options}{
+
+Argument \code{options} is a named list of options:\tabular{ll}{
+   Name \tab Value \cr
+   \code{conf_method} \tab \code{"HC"} (default) or \code{"Mock"} \cr
+}
 }
 
-If the distribution is not the Weibull, the confidence intervals of the
-parameters are computed on the basis of a heteroscedasticity-consistent
-covariance matrix. Here it should be said that there is no statistical foundation
-to determine the standard errors of the parameters using \emph{Least Squares}
-in context of \emph{Rank Regression}. For an accepted statistical method use
-\link[=ml_estimation]{maximum likelihood}.
-}
 \examples{
 # Reliability data preparation:
 ## Data for two-parametric model:
@@ -129,7 +148,17 @@ rr_3p <- rank_regression(
   conf_level = 0.99
 )
 
-# Example 3 - Fitting a three-parametric loglogistic distribution if multiple
+# Example 3 - Fitting a three-parametric lognormal distribution using
+# direction and control arguments:
+rr_3p_control <- rank_regression(
+  x = prob_tbl_3p,
+  distribution = "lognormal3",
+  conf_level = 0.99,
+  direction = "y_on_x",
+  control = list(trace = TRUE, REPORT = 1)
+)
+
+# Example 4 - Fitting a three-parametric loglogistic distribution if multiple
 # methods in estimate_cdf were specified:
 rr_lists <- rank_regression(
   x = prob_tbl_mult,
@@ -140,8 +169,9 @@ rr_lists <- rank_regression(
 }
 \references{
 \itemize{
-    \item Mock, R., Methoden zur Datenhandhabung in
-  Zuverlässigkeitsanalysen, vdf Hochschulverlag AG an der ETH Zürich, 1995
-    \item Meeker, William Q; Escobar, Luis A., Statistical methods for
-  reliability data, New York: Wiley series in probability and statistics, 1998}
+\item Mock, R., Methoden zur Datenhandhabung in Zuverlässigkeitsanalysen,
+vdf Hochschulverlag AG an der ETH Zürich, 1995
+\item Meeker, William Q; Escobar, Luis A., Statistical methods for reliability data,
+New York: Wiley series in probability and statistics, 1998
+}
 }

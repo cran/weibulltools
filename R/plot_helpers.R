@@ -1,40 +1,49 @@
-plot_layout_helper <- function(x, distribution, plot_method = c("plotly", "ggplot2")) {
+# Helper function to set the distribution-specific grid:
+plot_layout_helper <- function(x,
+                               y = NULL,
+                               distribution
+) {
 
-  plot_method <- match.arg(plot_method)
-
-  # Define x-ticks of logarithm to the base of 10 for Log-Location-Scale Distributions:
+  # Define x-ticks as logarithm to the base of 10 for log-location-scale distributions:
   if (distribution %in% c("weibull", "lognormal", "loglogistic")) {
 
-    # Layout dependent on data x, function to build helpful sequences:
+    # Layout depends on x, using a function to build helpful sequences:
     x_base <- function(xb) floor(log10(xb))
     xlog10_range <- (x_base(min(x)) - 1):x_base(max(x))
-    # x-ticks and x-labels
-    x_ticks <- sapply(xlog10_range, function(z) seq(10 ^ z, 10 ^ (z + 1), 10 ^ z),
-                      simplify = TRUE)
+    # x-ticks and x-labels:
+    x_ticks <- sapply(
+      xlog10_range,
+      function(z) seq(10 ^ z, 10 ^ (z + 1), 10 ^ z),
+      simplify = TRUE
+    )
     x_ticks <- round(as.numeric(x_ticks), digits = 10)
     x_ticks <- x_ticks[!duplicated(x_ticks)]
     x_labels <- x_ticks
     x_labels[c(rep(F, 3), rep(T, 6))] <- " "
   } else {
-    # We don't need these values, therefore we return NULL
-    x_ticks <- if (plot_method == "plotly") NULL else ggplot2::waiver()
-    x_labels <- if (plot_method == "plotly") NULL else ggplot2::waiver()
+    # We don't need these values, therefore we return NULL:
+    x_ticks <- x_labels <- NULL
   }
 
-  # y-ticks and y-labels
-  # hard coded but it's okay since range is always between 0 and 1.
-  y_s <- c(.0000001, .000001, .00001, .0001, .001, .01, .05, .1, .2, .3, .5, .6,
-           .7, .8, .9, .95, .99, .999, .9999, .99999)
+  # y-ticks and y-labels:
+  ## Hard coded but it's okay since range is always between 0 and 1:
+  y_s <- c(.0000001, .000001, .00001, .0001, .001, .005, .01, .05, .1,
+           .2, .3, .5, .6, .7, .8, .9, .95, .99, .999, .9999, .99999)
 
-  if (distribution %in% c("weibull", "sev")) {
-    y_ticks <- SPREDA::qsev(y_s)
+  ## If argument y is not `NULL` y is used to narrow down the range of y_s:
+  if (!purrr::is_null(y)) {
+    ### y range:
+    ymin <- min(y, na.rm = TRUE)
+    ymax <- max(y, na.rm = TRUE)
+
+    ### Determine adjacent indices, i.e. min(y)_(i-1) and max(y)_(i+1) if exist:
+    ind_min <- max(which(y_s < ymin), 1L)
+    ind_max <- min(which(y_s > ymax), length(y_s))
+
+    y_s <- y_s[ind_min:ind_max]
   }
-  if (distribution %in% c("lognormal", "normal")) {
-    y_ticks <- stats::qnorm(y_s)
-  }
-  if (distribution %in% c("loglogistic", "logistic")) {
-    y_ticks <- stats::qlogis(y_s)
-  }
+
+  y_ticks <- q_std(y_s, distribution)
 
   y_labels <- y_s * 100
 
@@ -47,36 +56,35 @@ plot_layout_helper <- function(x, distribution, plot_method = c("plotly", "ggplo
     y_labels = y_labels
   )
 
-  return(l)
+  l
 }
 
-plot_prob_helper <- function(
-  tbl, distribution
+
+
+# Helper function to compute the distribution-specific plotting positions:
+plot_prob_helper <- function(tbl,
+                             distribution
 ) {
   tbl <- tbl %>%
     dplyr::filter(.data$status == 1) %>%
     dplyr::arrange(.data$x)
 
-  # Choice of distribution:
-  if (distribution %in% c("weibull", "sev")) {
-    q <- SPREDA::qsev(tbl$prob)
-  }
-  if (distribution %in% c("lognormal", "normal")) {
-    q <- stats::qnorm(tbl$prob)
-  }
-  if (distribution %in% c("loglogistic", "logistic")) {
-    q <- stats::qlogis(tbl$prob)
-  }
-  tbl$q <- q
+  tbl$q <- q_std(tbl$prob, distribution)
 
   tbl
 }
 
-plot_mod_helper <- function(
-  x, dist_params, distribution, cdf_estimation_method = NA_character_
+
+
+# Helper function to compute distribution-specific points of the regression line:
+plot_mod_helper <- function(x,
+                            dist_params,
+                            distribution,
+                            cdf_estimation_method = NA_character_
 ) {
+
   if (length(x) == 2) {
-    if (distribution %in% c("weibull", "lognormal", "loglogistic")) {
+    if (std_parametric(distribution) %in% c("weibull", "lognormal", "loglogistic")) {
       x_p <- 10 ^ seq(log10(x[1]), log10(x[2]), length.out = 100)
     } else {
       x_p <- seq(x[1], x[2], length.out = 100)
@@ -91,7 +99,8 @@ plot_mod_helper <- function(
       warning(
         "'x' has less than 30 values and distribution is three-parametric.
         Consider using 'x = range(x)' to avoid visual kinks in regression line.
-        "
+        ",
+        call. = FALSE
       )
     }
 
@@ -106,30 +115,24 @@ plot_mod_helper <- function(
 
   tbl_pred <- tibble::tibble(x_p = x_p, y_p = y_p)
 
-  # Smallest Extreme Value Distribution:
-  if (distribution %in% c("weibull", "weibull3", "sev")) {
-    q <- SPREDA::qsev(y_p)
-  }
+  q <- q_std(y_p, std_parametric(distribution))
 
-  # Standard Normal Distribution:
-  if (distribution %in% c("lognormal", "lognormal3", "normal")) {
-    q <- stats::qnorm(y_p)
-  }
+  # Preparation of plotly hovers:
+  n_par <- length(dist_params)
+  ## Values:
+  param_val <- rep(NA_character_, 3)
+  param_val[1:n_par] <- format(dist_params, digits = 3)
 
-  # Standard Logistic Distribution:
-  if (distribution %in% c("loglogistic", "loglogistic3", "logistic")) {
-    q <- stats::qlogis(y_p)
-  }
-
-  # preparation of plotly hovers:
-  ## raises problems if one-parameter distributions like exponential will be implemented!
-  param_val <- format(dist_params, digits = 3)
-  # Enforce length 3
-  if (length(dist_params) == 2) param_val <- c(param_val, NA)
-  param_label <- if (length(dist_params) == 2) {
-    c("\u03BC:", "\u03C3:", NA)
+  ## Labels:
+  ### Enforce length 3:
+  if (std_parametric(distribution) == "exponential") {
+    param_label <- c("\u03B8:", NA_character_, NA_character_)
   } else {
-    c("\u03BC:", "\u03C3:", "\u03B3:")
+    param_label <- c("\u03BC:", "\u03C3:", NA_character_)
+  }
+
+  if (has_thres(distribution)) {
+    param_label[n_par] <- "\u03B3:"
   }
 
   tbl_pred <- tbl_pred %>%
@@ -142,7 +145,14 @@ plot_mod_helper <- function(
     )
 }
 
-plot_mod_mix_helper <- function(model_estimation, cdf_estimation_method, group) {
+
+
+# Helper function to compute distribution-specific points of the regression line:
+plot_mod_mix_helper <- function(model_estimation,
+                                cdf_estimation_method,
+                                group
+) {
+
   distribution <- model_estimation$distribution
   data <- model_estimation$data %>%
     dplyr::filter(.data$status == 1)
@@ -171,56 +181,73 @@ plot_mod_mix_helper <- function(model_estimation, cdf_estimation_method, group) 
     group = group
   )
 
-  # Choice of distribution:
-  if (distribution == "weibull") {
-    q <- SPREDA::qsev(tbl_p$y_p)
-  } else if (distribution == "lognormal") {
-    q <- stats::qnorm(tbl_p$y_p)
-  } else if (distribution == "loglogistic") {
-    q <- stats::qlogis(tbl_p$y_p)
-  }
-  tbl_p$q <- q
+  tbl_p$q <- q_std(tbl_p$y_p, distribution)
 
   tbl_p
 }
 
 
 
-plot_conf_helper_2 <- function(confint, distribution) {
-  tbl_upper <- if (hasName(confint, "upper_bound")) tibble::tibble(
-    x = confint$x,
-    y = confint$upper_bound,
-    bound = "Upper",
-    cdf_estimation_method = confint$cdf_estimation_method
-  )
+# Helper function for S3 method plot_conf.wt_confint:
+plot_conf_helper_2 <- function(confint) {
+  direction <- attr(confint, "direction", exact = TRUE)
+  distribution <- attr(confint, "distribution", exact = TRUE)
 
-  tbl_lower <- if (hasName(confint, "lower_bound")) tibble::tibble(
-    x = confint$x,
-    y = confint$lower_bound,
-    bound = "Lower",
-    cdf_estimation_method = confint$cdf_estimation_method
-  )
+  tbl_upper <- if (hasName(confint, "upper_bound")) {
+    if (direction == "x") {
+      tibble::tibble(
+        x = confint$upper_bound,
+        y = confint$prob,
+        bound = "Upper",
+        cdf_estimation_method = confint$cdf_estimation_method
+      )
+    } else {
+      tibble::tibble(
+        x = confint$x,
+        y = confint$upper_bound,
+        bound = "Upper",
+        cdf_estimation_method = confint$cdf_estimation_method
+      )
+    }
+  }
+
+  tbl_lower <- if (hasName(confint, "lower_bound")) {
+    if (direction == "x") {
+      tibble::tibble(
+        x = confint$lower_bound,
+        y = confint$prob,
+        bound = "Lower",
+        cdf_estimation_method = confint$cdf_estimation_method
+      )
+    } else {
+      tibble::tibble(
+        x = confint$x,
+        y = confint$lower_bound,
+        bound = "Lower",
+        cdf_estimation_method = confint$cdf_estimation_method
+      )
+    }
+  }
 
   tbl_p <- dplyr::bind_rows(tbl_upper, tbl_lower)
 
-  if (distribution %in% c("weibull", "weibull3", "sev")) {
-    tbl_p$q <- SPREDA::qsev(tbl_p$y)
-  }
-  if (distribution %in% c("lognormal", "lognormal3", "normal")) {
-    tbl_p$q <- stats::qnorm(tbl_p$y)
-  }
-  if (distribution %in% c("loglogistic", "loglogistic3", "logistic")) {
-    tbl_p$q <- stats::qlogis(tbl_p$y)
-  }
+  tbl_p$q <- q_std(tbl_p$y, std_parametric(distribution))
 
   tbl_p <- dplyr::group_by(tbl_p, .data$bound)
 
-  return(tbl_p)
+  tbl_p
 }
 
 
 
-plot_conf_helper <- function(tbl_mod, x, y, direction, distribution) {
+# Helper function for S3 method plot_conf.default:
+plot_conf_helper <- function(tbl_mod,
+                             x,
+                             y,
+                             direction,
+                             distribution
+) {
+
   # Construct x, y from x/y, upper/lower bounds (depending on direction and bounds)
   lst <- Map(tibble::tibble, x = x, y = y)
   tbl_p <- dplyr::bind_rows(lst, .id = "bound")
@@ -231,48 +258,53 @@ plot_conf_helper <- function(tbl_mod, x, y, direction, distribution) {
     tbl_p$bound <- ifelse(test = tbl_p$x < tbl_mod$x_p, yes = "Lower", no = "Upper")
   }
 
-  if (distribution %in% c("weibull", "weibull3", "sev")) {
-    tbl_p$q <- SPREDA::qsev(tbl_p$y)
-  }
-  if (distribution %in% c("lognormal", "lognormal3", "normal")) {
-    tbl_p$q <- stats::qnorm(tbl_p$y)
-  }
-  if (distribution %in% c("loglogistic", "loglogistic3", "logistic")) {
-    tbl_p$q <- stats::qlogis(tbl_p$y)
-  }
+  tbl_p$q <- q_std(tbl_p$y, std_parametric(distribution))
 
   tbl_p <- dplyr::group_by(tbl_p, .data$bound)
   tbl_p$cdf_estimation_method <- NA_character_
 
-  return(tbl_p)
+  tbl_p
 }
 
-plot_pop_helper <- function(x, dist_params_tbl, distribution, tol = 1e-6) {
+
+
+# Helper function for `plot_pop()`:
+plot_pop_helper <- function(x,
+                            dist_params_tbl,
+                            distribution,
+                            tol = 1e-6
+) {
+
+  # Determine equidistant x positions if needed:
   x_s <- if (length(x) == 2) {
     10 ^ seq(log10(x[1]), log10(x[2]), length.out = 200)
   } else {
     x
   }
 
+  # Set groups, since every row is its own distribution:
   tbl_pop <- dist_params_tbl %>%
     dplyr::mutate(group = as.character(dplyr::row_number()))
-  # column x_y is list column that contains a tibble each
-  tbl_pop$x_y <- purrr::pmap(
-    dist_params_tbl,
+
+  # Map predict_prob over tbl_pop:
+  tbl_pop <- purrr::pmap_dfr(
+    tbl_pop,
     x_s = x_s,
     distribution = distribution,
-    function(loc, sc, thres = NA, x_s, distribution) {
-      # Replace NA with NULL, so that thres is ignored in c()
-      if (is.na(thres)) thres <- NULL
+    function(loc = NA, sc, thres = NA, group, x_s, distribution) {
+      # Replace NA with NULL, so that loc and thres are ignored in c():
+      dist_params <- c(loc %NA% NULL, sc, thres %NA% NULL)
 
-      dist_params <- c(loc, sc, thres)
-
-      if (length(dist_params) == 3) {
-        # Case three-parametric distribution
-        distribution <- paste0(distribution, "3")
+      if (!is_std_parametric(distribution, dist_params)) {
+        # Threshold models:
+        distribution <- paste0(distribution, length(dist_params))
       }
 
       tibble::tibble(
+        loc = loc,
+        sc = sc,
+        thres = thres,
+        group = group,
         x_s = x_s,
         y_s = predict_prob(
           q = x_s,
@@ -284,31 +316,18 @@ plot_pop_helper <- function(x, dist_params_tbl, distribution, tol = 1e-6) {
   )
 
   tbl_pop <- tbl_pop %>%
-    tidyr::unnest(cols = .data$x_y) %>%
     dplyr::filter(.data$y_s < 1, .data$y_s > 0)
 
-  if (distribution %in% c("weibull", "weibull3", "sev")) {
-    tbl_pop <- tbl_pop %>%
-      dplyr::mutate(q = SPREDA::qsev(.data$y_s))
-  }
-  if (distribution %in% c("lognormal", "lognormal3", "normal")) {
-    tbl_pop <- tbl_pop %>%
-      dplyr::mutate(q = stats::qnorm(.data$y_s))
-  }
-  if (distribution %in% c("loglogistic", "loglogistic3", "logistic")) {
-    tbl_pop <- tbl_pop %>%
-      dplyr::mutate(q = stats::qlogis(.data$y_s))
-  }
-
-  # set values and labels for plotlys hoverinfo:
+  tbl_pop$q <- q_std(tbl_pop$y_s, distribution)
+  # Set values and labels for plotlys hoverinfo:
   tbl_pop <- tbl_pop %>%
     dplyr::mutate(
-      param_val_1 = format(tbl_pop$loc, digits = 3),
-      param_val_2 = format(tbl_pop$sc, digits = 3),
-      param_val_3 = ifelse(is.na(tbl_pop$thres), NA, format(tbl_pop$thres, digits = 3)),
-      param_label_1 = "\u03BC:",
-      param_label_2 = "\u03C3:",
-      param_label_3 = ifelse(is.na(tbl_pop$thres), NA, "\u03B3:")
+      param_val_1 = ifelse(is.na(.data$loc), NA, format(.data$loc, digits = 3)),
+      param_val_2 = format(.data$sc, digits = 3),
+      param_val_3 = ifelse(is.na(.data$thres), NA, format(.data$thres, digits = 3)),
+      param_label_1 = ifelse(is.na(.data$loc), NA, "\u03BC:"),
+      param_label_2 = if (distribution == "exponential") "\u03B8:" else "\u03C3:",
+      param_label_3 = ifelse(is.na(.data$thres), NA, "\u03B3:")
     ) %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
@@ -320,11 +339,8 @@ plot_pop_helper <- function(x, dist_params_tbl, distribution, tol = 1e-6) {
       )
     ) %>%
     dplyr::ungroup() %>%
-    dplyr::select(
-      .data$x_s, .data$y_s, .data$q, .data$param_val, .data$param_label,
-      .data$group
-    ) %>%
+    dplyr::select("x_s", "y_s", "q", "param_val", "param_label", "group") %>%
     dplyr::filter(.data$y_s <= 1 - tol, .data$y_s >= tol)
 
-  return(tbl_pop)
+  tbl_pop
 }

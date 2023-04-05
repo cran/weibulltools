@@ -8,52 +8,45 @@
 #' The segmentation process is based on the lifetime realizations of failed
 #' units and their corresponding estimated failure probabilities for which intact
 #' items are taken into account. It is performed with the support of
-#' \code{\link[segmented:segmented]{segmented.lm}}.
+#' [segmented.lm][segmented::segmented].
 #'
 #' Segmentation can be done with a specified number of subgroups or in an automated
-#' fashion (see argument \code{k}).
-#' The algorithm tends to overestimate the number of breakpoints when the separation
-#' is done automatically (see 'Warning' in \code{\link[segmented:segmented]{segmented.lm}}).
+#' fashion (see argument `k`). The algorithm tends to overestimate the number of
+#' breakpoints when the separation is done automatically (see 'Warning' in
+#' [segmented.lm][segmented::segmented]).
 #'
 #' In the context of reliability analysis it is important that the main types of
 #' failures can be identified and analyzed separately. These are
-#' \itemize{
-#'   \item early failures,
-#'   \item random failures and
-#'   \item wear-out failures.
-#' }
+#'
+#' * early failures,
+#' * random failures and
+#' * wear-out failures.
+#'
 #' In order to reduce the risk of overestimation as well as being able to consider
-#' the main types of failures, a maximum of three subgroups (\code{k = 3}) is recommended.
+#' the main types of failures, a maximum of three subgroups (`k = 3`) is recommended.
 #'
 #' @inheritParams rank_regression.wt_cdf_estimation
+#' @param k Number of mixture components. If the data should be split in an
+#' automated fashion, `k` must be set to `NULL`. The argument `fix.psi` of
+#' `control` is then set to `FALSE`.
+#' @param control Output of the call to [seg.control][segmented::seg.control],
+#' which is passed to [segmented.lm][segmented::segmented]. See 'Examples' for usage.
 #'
-#' @param k Number of mixture components. If the data should be split in an automated
-#'   fashion, \code{k} must be set to \code{NULL}. The argument \code{fix.psi}
-#'   of \code{control} is then set to \code{FALSE}.
-#' @param control Output of the call to \code{\link[segmented]{seg.control}}, which
-#'   is passed to \code{\link[segmented:segmented]{segmented.lm}}.
-#'   See 'Examples' for usage.
+#' @return A list with classes `wt_model` and `wt_rank_regression` if no breakpoint
+#' was detected. See [rank_regression].
 #'
-#' @return Returns a list with classes \code{wt_model} and
-#' \code{wt_rank_regression} if no breakpoint was detected. See
-#' \code{\link{rank_regression}}.
+#' A list with classes `wt_model` and `wt_mixmod_regression` if at least one
+#' breakpoint was determined. The length of the list depends on the number of
+#' identified subgroups. Each list element contains the information provided by
+#' [rank_regression]. In addition, the returned tibble `data` of each list element
+#' only retains information on the failed units and has two more columns:
 #'
-#' Returns a list with classes \code{wt_model} and \code{wt_mixmod_regression}
-#' if at least one breakpoint was determined. The length of the list depends on
-#' the number of identified subgroups. Each list element contains the
-#' information provided by \code{\link{rank_regression}}. In addition, the
-#' returned tibble \code{data} of each list element only retains information on
-#' the failed units and has two more columns:
-#' \itemize{
-#'   \item \code{q} : Quantiles of the standard distribution calculated from
-#'     column \code{prob}.
-#'   \item \code{group} : Membership to the respective segment.
-#' }
+#' * `q` : Quantiles of the standard distribution calculated from column `prob`.
+#' * `group` : Membership to the respective segment.
 #'
-#' If more than one method was specified in \code{\link{estimate_cdf}}, the
-#' resulting output is a list with classes \code{wt_model} and
-#' \code{wt_mixmod_regression_list} where each list element has class
-#' \code{wt_model} and \code{wt_mixmod_regression}.
+#' If more than one method was specified in [estimate_cdf], the resulting output
+#' is a list with classes `wt_model` and `wt_mixmod_regression_list` where each
+#' list element has classes `wt_model` and `wt_mixmod_regression`.
 #'
 #' @encoding UTF-8
 #'
@@ -128,6 +121,8 @@
 #'   k = 1
 #' )
 #'
+#' @md
+#'
 #' @export
 mixmod_regression <- function(x, ...) {
   UseMethod("mixmod_regression")
@@ -186,35 +181,32 @@ mixmod_regression.wt_cdf_estimation <- function(
 #'
 #' @inheritParams rank_regression.default
 #' @inheritParams mixmod_regression.wt_cdf_estimation
+#' @param control Output of the call to [seg.control][segmented::seg.control],
+#' which is passed to [segmented.lm][segmented::segmented]. See 'Examples' for usage.
 #'
-#'
-#' @return Returns a list of class \code{wt_rank_regression} if no breakpoint
-#' was detected. See \code{\link{rank_regression}}. The tibble \code{data} is
-#' returned with class \code{wt_cdf_estimation} and contains the additional
-#' dummy columns \code{method} and \code{id}. The former is filled with
-#' \code{NA_character}, due to generic visualization functions and the latter is
-#' filled with \code{"XXXXXX"} to point out that unit identification is not
+#' @return A list with classes `wt_model` and `wt_rank_regression` if no breakpoint
+#' was detected. See [rank_regression]. The returned tibble `data` is of class
+#' `wt_cdf_estimation` and contains the dummy columns `cdf_estimation_method` and
+#' `id`. The former is filled with `NA_character`, due to internal usage and the
+#' latter is filled with `"XXXXXX"` to point out that unit identification is not
 #' possible when using the vector-based approach.
 #'
-#' Returns a list of class \code{wt_mixmod_regression} if at least one
+#' A list with classes `wt_model` and `wt_mixmod_regression` if at least one
 #' breakpoint was determined. The length of the list depends on the number of
 #' identified subgroups. Each list contains the information provided by
-#' \code{\link{rank_regression}}. The returned tibble \code{data} of each list
-#' element only retains information on the failed units and has modified
-#' and additional columns:
-#' \itemize{
-#'   \item \code{id} : Modified id, overwritten with \code{"XXXXXX"} to point out
-#'     that unit identification is not possible when using the vector-based approach.
-#'   \item \code{method} : A character that is always \code{"_null"}. Due to generic
-#'     visualization functions column \code{method} has to be provided.
-#'   \item \code{q} : Quantiles of the standard distribution calculated from
-#'     column \code{prob}.
-#'   \item \code{group} : Membership to the respective segment.
-#' }
+#' [rank_regression]. The returned tibble `data` of each list element only retains
+#' information on the failed units and has modified and additional columns:
+#'
+#' * `id` : Modified id, overwritten with `"XXXXXX"` to point out that unit
+#'   identification is not possible when using the vector-based approach.
+#' * `cdf_estimation_method` : A character that is always `NA_character`. Only
+#'   needed for internal use.
+#' * `q` : Quantiles of the standard distribution calculated from column `prob`.
+#' * `group` : Membership to the respective segment.
 #'
 #' @encoding UTF-8
 #'
-#' @seealso \code{\link{mixmod_regression}}
+#' @seealso [mixmod_regression]
 #'
 #' @examples
 #' # Vectors:
@@ -277,6 +269,8 @@ mixmod_regression.wt_cdf_estimation <- function(
 #'   k = 1
 #' )
 #'
+#' @md
+#'
 #' @export
 mixmod_regression.default <- function(x,
                                       y,
@@ -322,21 +316,13 @@ mixmod_regression_ <- function(cdf_estimation,
 ) {
 
   if (!purrr::is_null(k) && k < 1) {
-    stop("'k' must be greater or equal than 1!")
+    stop("'k' must be greater or equal than 1!", call. = FALSE)
   }
 
   # Preparation for segmented regression:
   cdf_failed <- dplyr::filter(cdf_estimation, .data$status == 1)
 
-  if (distribution == "weibull") {
-    cdf_failed$q <- SPREDA::qsev(cdf_failed$prob)
-  }
-  if (distribution == "lognormal") {
-    cdf_failed$q <- stats::qnorm(cdf_failed$prob)
-  }
-  if (distribution == "loglogistic") {
-    cdf_failed$q <- stats::qlogis(cdf_failed$prob)
-  }
+  cdf_failed$q <- q_std(cdf_failed$prob, distribution)
 
   mrr <- stats::lm(log(x) ~ q, cdf_failed)
 
@@ -382,7 +368,10 @@ mixmod_regression_ <- function(cdf_estimation,
   # Test for successful segmentation of all failed units:
   if (purrr::is_null(group_seg)) {
     # Not succeeded:
-    stop("Segmentation has not succeeded. Reduce 'k' in the function call!")
+    stop(
+      "Segmentation has not succeeded. Reduce 'k' in the function call!",
+      call. = FALSE
+    )
   }
 
   # Succeeded:
@@ -453,56 +442,50 @@ print.wt_mixmod_regression_list <- function(x,
 #' defined. Starting values can be provided for the unknown parameter vector as
 #' well as for the posterior probabilities. This implementation employs initial
 #' values for the posterior probabilities. These are assigned randomly
-#' by using the dirichlet distribution, the conjugate prior of a multinomial
-#' distribution (see Mr. Gelissen's blog post listed under \emph{references}).
+#' by using the Dirichlet distribution, the conjugate prior of a multinomial
+#' distribution (see Mr. Gelissen's blog post listed under *references*).
 #'
-#' \strong{M-Step} : On the basis of the initial posterior probabilities, the
-#' parameter vector is estimated with \emph{Newton-Raphson}.
+#' **M-Step** : On the basis of the initial posterior probabilities, the
+#' parameter vector is estimated with *Newton-Raphson*.
 #'
-#' \strong{E-Step} : The actual estimated parameter vector is used to perform an
+#' **E-Step** : The actual estimated parameter vector is used to perform an
 #' update of the posterior probabilities.
 #'
 #' This procedure is repeated until the complete log-likelihood has converged.
 #'
-#' @param x An object of class \code{wt_reliability_data} returned from
-#'   \code{\link{reliability_data}}.
-#' @param distribution \code{"weibull"} until further distributions are implemented.
+#' @param x A tibble with class `wt_reliability_data` returned by [reliability_data].
+#' @param distribution `"weibull"` until further distributions are implemented.
 #' @param conf_level Confidence level for the intervals of the Weibull parameters
-#' of every component \code{k}.
+#' of every component `k`.
 #' @param k Number of mixture components.
-#' @param method \code{"EM"} until other methods are implemented.
+#' @param method `"EM"` until other methods are implemented.
 #' @param n_iter Integer defining the maximum number of iterations.
 #' @param conv_limit Numeric value defining the convergence limit.
 #' @param diff_loglik Numeric value defining the maximum difference between
-#'   log-likelihood values, which seems permissible.
+#' log-likelihood values, which seems permissible.
 #' @template dots
 #'
-#' @return Returns a list with classes \code{wt_model} and \code{wt_mixmod_em}.
-#' The length of the list depends on the number of specified subgroups \emph{k}.
-#' The first \code{k} lists contain information provided by
-#' \link{ml_estimation}. The values of \code{logL}, \code{aic} and \code{bic}
-#' are the results of a weighted log-likelihood, where the weights are the
-#' posterior probabilities determined by the algorithm. The last list summarizes
-#' further results of the EM algorithm and is therefore called
-#' \code{em_results}. It contains the following elements:
-#'   \itemize{
-#'     \item \code{a_priori} : A vector with estimated prior probabilities.
-#'     \item \code{a_posteriori} : A matrix with estimated posterior probabilities.
-#'     \item \code{groups} : Numeric vector specifying the group membership of
-#'       every observation.
-#'     \item \code{logL} : The value of the complete log-likelihood.
-#'     \item \code{aic} : Akaike Information Criterion.
-#'     \item \code{bic} : Bayesian Information Criterion.
-#'   }
+#' @return A list with classes `wt_model` and `wt_mixmod_em`. The length of the
+#' list depends on the number of specified subgroups `k`. The first `k` lists
+#' contain information provided by [ml_estimation]. The values of `logL`, `aic`
+#' and `bic` are the results of a weighted log-likelihood, where the weights are
+#' the posterior probabilities determined by the algorithm. The last list summarizes
+#' further results of the EM algorithm and is therefore called `em_results`. It
+#' contains the following elements:
+#'
+#' * `a_priori` : A vector with estimated prior probabilities.
+#' * `a_posteriori` : A matrix with estimated posterior probabilities.
+#' * `groups` : Numeric vector specifying the group membership of every observation.
+#' * `logL` : The value of the complete log-likelihood.
+#' * `aic` : Akaike Information Criterion.
+#' * `bic` : Bayesian Information Criterion.
 #'
 #' @encoding UTF-8
 #'
 #' @references
-#'   \itemize{
-#'     \item Doganaksoy, N.; Hahn, G.; Meeker, W. Q., Reliability Analysis by
-#'       Failure Mode, Quality Progress, 35(6), 47-52, 2002
-#'     \item Blog posts by Stefan Gelissen: \url{https://blogs2.datall-analyse.nl/2016/02/18/rcode_mixture_distribution_censored/};
-#'       last accessed on 8th December 2020}
+#'
+#' * Doganaksoy, N.; Hahn, G.; Meeker, W. Q., Reliability Analysis by Failure Mode,
+#'   Quality Progress, 35(6), 47-52, 2002
 #'
 #' @examples
 #' # Reliability data preparation:
@@ -528,6 +511,8 @@ print.wt_mixmod_regression_list <- function(x,
 #'   k = 1,
 #'   n_iter = 150
 #' )
+#'
+#' @md
 #'
 #' @export
 mixmod_em <- function(x, ...) {
@@ -573,15 +558,13 @@ mixmod_em.wt_reliability_data <- function(x,
 #' @inherit mixmod_em description details return references
 #'
 #' @inheritParams mixmod_em
+#' @param x A numeric vector which consists of lifetime data. Lifetime data
+#' could be every characteristic influencing the reliability of a product, e.g.
+#' operating time (days/months in service), mileage (km, miles), load cycles.
+#' @param status A vector of binary data (0 or 1) indicating whether a unit is a
+#' right censored observation (= 0) or a failure (= 1).
 #'
-#' @param x A numeric vector which consists of lifetime data. Lifetime
-#'   data could be every characteristic influencing the reliability of a product,
-#'   e.g. operating time (days/months in service), mileage (km, miles), load
-#'   cycles.
-#' @param status A vector of binary data (0 or 1) indicating whether unit \emph{i}
-#'   is a right censored observation (= 0) or a failure (= 1).
-#'
-#' @seealso \code{\link{mixmod_em}}
+#' @seealso [mixmod_em]
 #'
 #' @examples
 #' # Vectors:
@@ -608,6 +591,8 @@ mixmod_em.wt_reliability_data <- function(x,
 #'   method = "EM",
 #'   n_iter = 150
 #' )
+#'
+#' @md
 #'
 #' @export
 mixmod_em.default <- function(x,
@@ -651,7 +636,7 @@ mixmod_em_ <- function(data,
                        drop_id
 ) {
 
-  x <- get_characteristic(data)
+  x <- data$x
   status <- data$status
 
   # Providing initial random a-posteriors (see references, blog post Mr. Gelissen):
@@ -682,7 +667,7 @@ mixmod_em_ <- function(data,
     ),
     silent = TRUE
   )
-  if (class(ml) == "try-error") {
+  if (inherits(ml, "try-error")) {
     stop(
       paste(
         ml[1],
@@ -690,7 +675,8 @@ mixmod_em_ <- function(data,
         "\n Hint: Reduce k in function call and try again. If this does",
         "not succeed a mixture model seems not to be appropriate.",
         "\n Instead use k = 1 to perform ml_estimation()."
-      )
+      ),
+      call. = FALSE
     )
   }
 
@@ -707,7 +693,7 @@ mixmod_em_ <- function(data,
   # not valid anymore!!!!
 
   if (abs(logL_complete - mix_est$logL) > diff_loglik) {
-    stop("Parameter estimation was not successful!")
+    stop("Parameter estimation was not successful!", call. = FALSE)
   }
 
   # separate observations using maximum a-posteriori method (MAP):
@@ -772,21 +758,4 @@ print.wt_em_results <- function(x,
     cat("A priori\n")
     cat(x$a_priori)
   }, 2)
-}
-
-
-
-# Simulate a sample from a Dirichlet distribution:
-rdirichlet <- function(n, par) {
-  k <- length(par)
-  z <- matrix(0, nrow = n, ncol = k)
-  s <- matrix(0, nrow = n)
-  for (i in 1:k) {
-    z[, i] <- stats::rgamma(n, shape = par[i])
-    s <- s + z[, i]
-  }
-  for (i in 1:k) {
-    z[, i] <- z[, i]/s
-  }
-  return(z)
 }

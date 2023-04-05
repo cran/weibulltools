@@ -32,18 +32,17 @@ is a right censored observation (= 0) or a failure (= 1).}
 \item{...}{Further arguments passed to or from other methods. Currently not used.}
 }
 \value{
-A tibble containing the following columns:
+A tibble with class \code{wt_cdf_estimation} containing the following columns:
 \itemize{
-  \item \code{id} : Identification for every unit.
-  \item \code{x} : Lifetime characteristic.
-  \item \code{status} : Binary data (0 or 1) indicating whether a unit is a
-    right censored observation (= 0) or a failure (= 1).
-  \item \code{rank} : The (computed) ranks. Determined for methods \code{"mr"}
-    and \code{"johnson"}, filled with \code{NA} for other methods or if
-    \code{status = 0}.
-  \item \code{prob} : Estimated failure probabilities, \code{NA} if \code{status = 0}.
-  \item \code{cdf_estimation_method} : Specified method for the estimation of
-    failure probabilities.
+\item \code{id} : Identification for every unit.
+\item \code{x} : Lifetime characteristic.
+\item \code{status} : Binary data (0 or 1) indicating whether a unit is a right
+censored observation (= 0) or a failure (= 1).
+\item \code{rank} : The (computed) ranks. Determined for methods \code{"mr"} and \code{"johnson"},
+filled with \code{NA} for other methods or if \code{status = 0}.
+\item \code{prob} : Estimated failure probabilities, \code{NA} if \code{status = 0}.
+\item \code{cdf_estimation_method} : Specified method for the estimation of failure
+probabilities.
 }
 }
 \description{
@@ -54,49 +53,47 @@ into account.
 \details{
 The following techniques can be used for the \code{method} argument:
 \itemize{
-  \item \code{"mr"} : Method \emph{Median Ranks} is used to estimate the failure
-    probabilities of failed units without considering censored items.
-    Tied observations can be handled in three ways (See 'Options'):
-    \itemize{
-      \item \code{"max"} : Highest observed rank is assigned to tied observations.
-      \item \code{"min"} : Lowest observed rank is assigned to tied observations.
-      \item \code{"average"} : Mean rank is assigned to tied observations.
-    }
-    Two formulas can be used to determine cumulative failure probabilities
-    \emph{F(t)} (See 'Options'):
-    \itemize{
-      \item \code{"benard"} : Benard's approximation for Median Ranks.
-      \item \code{"invbeta"} : Exact Median Ranks using the inverse beta distribution.
-    }
-  \item \code{"johnson"} : The \emph{Johnson} method is used to estimate the
-    failure probabilities of failed units, taking censored units into account.
-    Compared to complete data, correction of probabilities is done by the
-    computation of adjusted ranks.
-  \item \code{"kaplan"} : The method of \emph{Kaplan} and \emph{Meier} is used
-    to estimate the survival function \emph{S(t)} with respect to (multiple)
-    right censored data. The complement of \emph{S(t)}, i.e. \emph{F(t)}, is
-    returned. In contrast to the original \emph{Kaplan-Meier} estimator, one
-    modification is made (see 'References').
+\item \code{"mr"} : Method \emph{Median Ranks} is used to estimate the failure probabilities
+of failed units without considering censored items. Tied observations can be
+handled in three ways (See 'Options'):
+\itemize{
+\item \code{"max"} : Highest observed rank is assigned to tied observations.
+\item \code{"min"} : Lowest observed rank is assigned to tied observations.
+\item \code{"average"} : Mean rank is assigned to tied observations.
+}
 
-    \strong{Note} : The \emph{Kaplan-Meier} estimator does not assign ranks to
-    observations, so the beta-binomial confidence intervals \emph{cannot} be
-    calculated using this method.
-  \item \code{"nelson"} : The \emph{Nelson-Aalen} estimator models the cumulative
-    hazard rate function in case of (multiple) right censored data. Equating the
-    formal definition of the hazard rate with that according to \emph{Nelson-Aalen}
-    results in a formula for the calculation of failure probabilities.
-
-    \strong{Note} : The \emph{Nelson-Aalen} estimator does not assign ranks to
-    observations, so the beta-binomial confidence intervals \emph{cannot} be
-    calculated using this method.
+Two formulas can be used to determine cumulative failure probabilities
+\emph{F(t)} (See 'Options'):
+\itemize{
+\item \code{"benard"} : Benard's approximation for Median Ranks.
+\item \code{"invbeta"} : Exact Median Ranks using the inverse beta distribution.
+}
+\item \code{"johnson"} : The \emph{Johnson} method is used to estimate the failure
+probabilities of failed units, taking censored units into account. Compared
+to complete data, correction of probabilities is done by the computation of
+adjusted ranks. Two formulas can be used to determine cumulative failure
+probabilities \emph{F(t)} (See 'Options'):
+\itemize{
+\item \code{"benard"} : Benard's approximation for Median Ranks.
+\item \code{"invbeta"} : Exact Median Ranks using the inverse beta distribution.
+}
+\item \code{"kaplan"} : The method of \emph{Kaplan} and \emph{Meier} is used to estimate the
+survival function \emph{S(t)} with respect to (multiple) right censored data.
+The complement of \emph{S(t)}, i.e. \emph{F(t)}, is returned. In contrast to the
+original \emph{Kaplan-Meier} estimator, one modification is made (see 'References').
+\item \code{"nelson"} : The \emph{Nelson-Aalen} estimator models the cumulative hazard rate
+function in case of (multiple) right censored data. Equating the formal
+definition of the hazard rate with that according to \emph{Nelson-Aalen} results
+in a formula for the calculation of failure probabilities.
 }
 }
 \section{Options}{
 
-The listed options can only be applied for method \code{"mr"}:
-\itemize{
-  \item \code{mr_method} : \code{"benard"} (default) or \code{"invbeta"}.
-  \item \code{mr_ties.method} : \code{"max"} (default), \code{"min"} or \code{"average"}.
+Argument \code{options} is a named list of options:\tabular{lll}{
+   Method \tab Name \tab Value \cr
+   \code{mr} \tab \code{mr_method} \tab \code{"benard"} (default) or \code{"invbeta"} \cr
+   \code{mr} \tab \code{mr_ties.method} \tab \code{"max"} (default), \code{"min"} or \code{"average"} \cr
+   \code{johnson} \tab \code{johnson_method} \tab \code{"benard"} (default) or \code{"invbeta"} \cr
 }
 }
 
@@ -132,5 +129,5 @@ prob_tbl_2 <- estimate_cdf(
 December 3, 2020
 }
 \seealso{
-\code{\link{estimate_cdf}}
+\link{estimate_cdf}
 }

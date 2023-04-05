@@ -1,4 +1,4 @@
-## ----setup, echo = FALSE------------------------------------------------------
+## ----setup, echo=FALSE, message=FALSE-----------------------------------------
 knitr::opts_chunk$set(
   collapse = TRUE,
   screenshot.force = FALSE,

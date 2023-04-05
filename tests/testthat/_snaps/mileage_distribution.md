@@ -12,21 +12,21 @@
 
 # mcs_mileage remains stable by defining the seed
 
-    Reliability data with characteristic 'mileage':
+    Reliability Data with characteristic x: 'mileage':
     # A tibble: 23 x 4
-       mileage  time status id   
-         <dbl> <dbl>  <dbl> <chr>
-     1  11837.  1000      0 ID1  
-     2  15655   1000      1 ID2  
-     3  13629   1000      1 ID3  
-     4  18292   1000      1 ID4  
-     5  37803.  1000      0 ID5  
-     6  39924.  1000      0 ID6  
-     7  33555   1000      1 ID7  
-     8  18915.  1000      0 ID8  
-     9  21737   1000      1 ID9  
-    10  29870   1000      1 ID10 
-    # ... with 13 more rows
+            x  time status id   
+        <dbl> <dbl>  <dbl> <chr>
+     1 11837.  1000      0 ID1  
+     2 15655   1000      1 ID2  
+     3 13629   1000      1 ID3  
+     4 18292   1000      1 ID4  
+     5 37803.  1000      0 ID5  
+     6 39924.  1000      0 ID6  
+     7 33555   1000      1 ID7  
+     8 18915.  1000      0 ID8  
+     9 21737   1000      1 ID9  
+    10 29870   1000      1 ID10 
+    # i 13 more rows
 
 ---
 
@@ -43,5 +43,5 @@
      8       6904.
      9          0 
     10          0 
-    # ... with 13 more rows
+    # i 13 more rows
 

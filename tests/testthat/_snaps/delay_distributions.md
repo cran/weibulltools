@@ -10,9 +10,9 @@
 
 # mcs_delay remains stable by defining the seed
 
-    Reliability data with characteristic 'time':
+    Reliability Data with characteristic x: 'time':
     # A tibble: 23 x 7
-       date_1.1   date_1.2   date_2.1   date_2.2    time status id   
+       date_1.1   date_1.2   date_2.1   date_2.2       x status id   
        <chr>      <chr>      <chr>      <chr>      <dbl>  <dbl> <chr>
      1 2014-07-28 <NA>       <NA>       <NA>        969.      0 ID1  
      2 2014-02-17 2014-09-15 2014-03-29 2014-10-09 1000       1 ID2  
@@ -24,12 +24,12 @@
      8 2014-03-07 <NA>       <NA>       <NA>        944.      0 ID8  
      9 2014-03-09 2015-04-25 2014-05-23 2015-05-28 1000       1 ID9  
     10 2014-04-13 2015-04-24 2014-05-09 2015-05-15 1000       1 ID10 
-    # ... with 13 more rows
+    # i 13 more rows
 
 ---
 
     # A tibble: 23 x 2
-       sim_delay.1 sim_delay.2
+       sim_delay_1 sim_delay_2
              <dbl>       <dbl>
      1        21.2      10.2  
      2         0         0    
@@ -41,7 +41,7 @@
      8        32.2      23.5  
      9         0         0    
     10         0         0    
-    # ... with 13 more rows
+    # i 13 more rows
 
 # dist_delay_register remains stable
 

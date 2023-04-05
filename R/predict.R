@@ -1,21 +1,21 @@
 #' Prediction of Quantiles for Parametric Lifetime Distributions
 #'
 #' @description
-#' This function predicts the quantiles of two- or three-parametric lifetime
-#' distributions that belong to the (log-)location-scale family.
+#' This function predicts the quantiles of a parametric lifetime distribution
+#' using the (log-)location-scale parameterization.
 #'
 #' @details
 #' For a given set of parameters and specified probabilities the quantiles
 #' of the chosen model are determined.
 #'
 #' @param p A numeric vector of probabilities.
-#' @param dist_params A (named) numeric vector of (log-)location-scale parameters
-#'   in the order of location (\eqn{\mu}) and scale (\eqn{\sigma}). If a
-#'   three-parametric model is selected, the threshold parameter (\eqn{\gamma})
-#'   has to be the third element.
+#' @param dist_params A vector of parameters. An overview of the
+#' distribution-specific parameters can be found in section 'Distributions'.
 #' @param distribution Supposed distribution of the random variable.
 #'
 #' @return A vector with predicted quantiles.
+#'
+#' @template dist-params
 #'
 #' @examples
 #' # Example 1 - Predicted quantiles for a two-parameter weibull distribution:
@@ -32,13 +32,16 @@
 #'   distribution = "weibull3"
 #' )
 #'
+#' @md
+#'
 #' @export
 predict_quantile <- function(p,
                              dist_params,
                              distribution = c(
                                "weibull", "lognormal", "loglogistic",
-                               "normal", "logistic", "sev",
-                               "weibull3", "lognormal3", "loglogistic3"
+                               "sev", "normal", "logistic",
+                               "weibull3", "lognormal3", "loglogistic3",
+                               "exponential", "exponential2"
                              )
 ) {
 
@@ -46,41 +49,30 @@ predict_quantile <- function(p,
 
   check_dist_params(dist_params, distribution)
 
-  # Log-Location-Scale Distributions:
-  if (distribution == "weibull") {
-    quantiles <- exp(SPREDA::qsev(p) * dist_params[[2]] + dist_params[[1]])
-  }
-  if (distribution == "lognormal") {
-    quantiles <- exp(stats::qnorm(p) * dist_params[[2]] + dist_params[[1]])
-  }
-  if (distribution == "loglogistic") {
-    quantiles <- exp(stats::qlogis(p) * dist_params[[2]] + dist_params[[1]])
-  }
-  # Log-Location-Scale Distributions with Threshold:
-  if (distribution == "weibull3") {
-    quantiles <- exp(SPREDA::qsev(p) * dist_params[[2]] + dist_params[[1]]) +
-      dist_params[[3]]
-  }
-  if (distribution == "lognormal3") {
-    quantiles <- exp(stats::qnorm(p) * dist_params[[2]] + dist_params[[1]]) +
-      dist_params[[3]]
-  }
-  if (distribution == "loglogistic3") {
-    quantiles <- exp(stats::qlogis(p) * dist_params[[2]] + dist_params[[1]]) +
-      dist_params[[3]]
-  }
-  # Location-Scale Distributions:
-  if (distribution == "sev") {
-    quantiles <- SPREDA::qsev(p) * dist_params[[2]] + dist_params[[1]]
-  }
-  if (distribution == "normal") {
-    quantiles <- stats::qnorm(p) * dist_params[[2]] + dist_params[[1]]
-  }
-  if (distribution == "logistic") {
-    quantiles <- stats::qlogis(p) * dist_params[[2]] + dist_params[[1]]
-  }
+  n_par <- length(dist_params)
 
-  return(quantiles)
+    # Determine q_p by switching between distributions:
+    q_p <- switch(
+      std_parametric(distribution),
+      "weibull" = ,
+      "sev" = qsev(p) * dist_params[[2]] + dist_params[[1]],
+      "lognormal" = ,
+      "normal" = stats::qnorm(p) * dist_params[[2]] + dist_params[[1]],
+      "loglogistic" = ,
+      "logistic" = stats::qlogis(p) * dist_params[[2]] + dist_params[[1]],
+      "exponential" = stats::qexp(p) * dist_params[[1]]
+    )
+
+    if (std_parametric(distribution) %in% c("weibull", "lognormal", "loglogistic")) {
+      q_p <- exp(q_p)
+    }
+
+    # Threshold models:
+    if (has_thres(distribution)) {
+      q_p <- q_p + dist_params[[n_par]]
+    }
+
+    q_p
 }
 
 
@@ -88,18 +80,19 @@ predict_quantile <- function(p,
 #' Prediction of Failure Probabilities for Parametric Lifetime Distributions
 #'
 #' @description
-#' This function predicts the (failure) probabilities of two- or three-parametric
-#' lifetime distributions that belong to the (log-)location-scale family.
+#' This function predicts the (failure) probabilities of a parametric lifetime
+#' distribution using the (log-)location-scale parameterization.
 #'
 #' @details
-#' For a given set of parameters and specified quantiles the (failure) probabilities
+#' For a given set of parameters and specified quantiles the probabilities
 #' of the chosen model are determined.
 #'
 #' @inheritParams predict_quantile
-#'
 #' @param q A numeric vector of quantiles.
 #'
 #' @return A vector with predicted (failure) probabilities.
+#'
+#' @template dist-params
 #'
 #' @examples
 #' # Example 1 - Predicted probabilities for a two-parameter weibull distribution:
@@ -116,13 +109,16 @@ predict_quantile <- function(p,
 #'   distribution = "weibull3"
 #' )
 #'
+#' @md
+#'
 #' @export
 predict_prob <- function(q,
                          dist_params,
                          distribution = c(
                            "weibull", "lognormal", "loglogistic",
-                           "normal", "logistic", "sev",
-                           "weibull3","lognormal3", "loglogistic3"
+                           "sev", "normal", "logistic",
+                           "weibull3","lognormal3", "loglogistic3",
+                           "exponential", "exponential2"
                          )
 ) {
 
@@ -130,75 +126,15 @@ predict_prob <- function(q,
 
   check_dist_params(dist_params, distribution)
 
-  # Log-Location-Scale Distributions:
-  if (distribution == "weibull") {
-    # Standardize:
-    z <- (log(q) - dist_params[[1]]) / dist_params[[2]]
-    cdf <- SPREDA::psev(z)
-  }
-  if (distribution == "lognormal") {
-    # Standardize:
-    z <- (log(q) - dist_params[[1]]) / dist_params[[2]]
-    cdf <- stats::pnorm(z)
-  }
-  if (distribution == "loglogistic") {
-    # Standardize:
-    z <- (log(q) - dist_params[[1]]) / dist_params[[2]]
-    cdf <- stats::plogis(z)
-  }
-  # Log-Location-Scale Distributions with Threshold:
-  if (distribution == "weibull3") {
-    # Standardize:
-    z <- (log(q - dist_params[[3]]) - dist_params[[1]]) / dist_params[[2]]
-    cdf <- SPREDA::psev(z)
-  }
-  if (distribution == "lognormal3") {
-    # Standardize:
-    z <- (log(q - dist_params[[3]]) - dist_params[[1]]) / dist_params[[2]]
-    cdf <- stats::pnorm(z)
-  }
-  if (distribution == "loglogistic3") {
-    # Standardize:
-    z <- (log(q - dist_params[[3]]) - dist_params[[1]]) / dist_params[[2]]
-    cdf <- stats::plogis(z)
-  }
-  # Location-Scale Distributions:
-  if (distribution == "sev") {
-    # Standardize:
-    z <- (q - dist_params[[1]]) / dist_params[[2]]
-    cdf <- SPREDA::psev(z)
-  }
-  if (distribution == "normal") {
-    # Standardize:
-    z <- (q - dist_params[[1]]) / dist_params[[2]]
-    cdf <- stats::pnorm(z)
-  }
-  if (distribution == "logistic") {
-    # Standardize:
-    z <- (q - dist_params[[1]]) / dist_params[[2]]
-    cdf <- stats::plogis(z)
-  }
+  # Standardize:
+  z <- standardize(
+    x = q, dist_params = dist_params, distribution = distribution
+  )
 
-  return(cdf)
-}
+  distribution <- std_parametric(distribution)
 
+  # Determine p_q by switching between distributions:
+  p_q <- p_std(z, distribution)
 
-
-check_dist_params <- function(dist_params, distribution) {
-  three_parametric <- distribution %in%
-    c("weibull3", "lognormal3", "loglogistic3")
-
-  if (three_parametric && length(dist_params) != 3) {
-    stop(
-      "A three-parametric distribution needs three parameters but",
-      " 'dist_params' has length ", length(dist_params), "."
-    )
-  }
-
-  if (!three_parametric && length(dist_params) != 2) {
-    stop(
-      "A two-parametric distribution needs two parameters but",
-      " 'dist_params' has length ", length(dist_params), "."
-    )
-  }
+  p_q
 }

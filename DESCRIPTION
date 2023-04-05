@@ -1,13 +1,13 @@
 Package: weibulltools
 Type: Package
 Title: Statistical Methods for Life Data Analysis
-Version: 2.0.0
+Version: 2.1.0
 Authors@R: 
     c(person("Tim-Gunnar", "Hensel", 
       email = "tim-gunnar.hensel@tu-berlin.de", 
       role = c("aut", "cre")),
       person("David", "Barkemeyer",
-      email = "david.barkemeyer@campus.tu-berlin.de",
+      email = "david.barkemeyer@gmx.de",
       role = "aut")
     )
 Description: Provides statistical methods and visualizations that are often 
@@ -39,25 +39,25 @@ Description: Provides statistical methods and visualizations that are often
              of regression lines and confidence bounds to existing plots are 
              supported. 
 License: GPL-2
-URL: https://tim-tu.github.io/weibulltools,
+URL: https://tim-tu.github.io/weibulltools/,
         https://github.com/Tim-TU/weibulltools
 BugReports: https://github.com/Tim-TU/weibulltools/issues
-Imports: dplyr, ggplot2, lifecycle, magrittr, plotly, purrr, Rcpp,
-        sandwich, segmented, SPREDA, survival, tibble, tidyr
+Imports: dplyr, ggplot2, lifecycle (>= 1.0.0), magrittr, plotly, purrr,
+        Rcpp, sandwich, segmented, tibble
 LinkingTo: Rcpp (>= 0.12.18), RcppArmadillo
 Depends: R (>= 3.5.0)
 Language: en-US
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.1.1
-Suggests: knitr, rmarkdown, testthat
+RoxygenNote: 7.2.3
+Suggests: knitr, rmarkdown, testthat, pillar (>= 1.9.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 RdMacros: lifecycle
 NeedsCompilation: yes
-Packaged: 2021-01-12 07:45:20 UTC; Tim.Hensel
+Packaged: 2023-04-04 20:48:00 UTC; david
 Author: Tim-Gunnar Hensel [aut, cre],
   David Barkemeyer [aut]
 Maintainer: Tim-Gunnar Hensel <tim-gunnar.hensel@tu-berlin.de>
 Repository: CRAN
-Date/Publication: 2021-01-12 09:30:02 UTC
+Date/Publication: 2023-04-05 10:10:02 UTC

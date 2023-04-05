@@ -1,4 +1,4 @@
-## ----setup, echo = FALSE------------------------------------------------------
+## ----setup, echo=FALSE, message=FALSE-----------------------------------------
 knitr::opts_chunk$set(
   collapse = TRUE,
   screenshot.force = FALSE,
@@ -6,7 +6,7 @@ knitr::opts_chunk$set(
 )
 library(weibulltools)
 
-## ----rank_densities, fig.cap = "Figure 1: Densities for different ranks i in samples of size n = 10.", message = FALSE----
+## ----rank_densities, fig.cap = "Figure 1: Densities for different ranks i in samples of size n = 10.", message = FALSE, warning = FALSE----
 library(dplyr) # data manipulation 
 library(ggplot2) # visualization
 

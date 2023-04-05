@@ -1,4 +1,4 @@
-## ----setup, echo = FALSE------------------------------------------------------
+## ----setup, echo=FALSE, message=FALSE-----------------------------------------
 knitr::opts_chunk$set(
   collapse = TRUE,
   screenshot.force = FALSE,
@@ -6,89 +6,113 @@ knitr::opts_chunk$set(
 )
 library(weibulltools)
 
-## ----dataset_voltage, message = FALSE-----------------------------------------
-voltage_tbl <- reliability_data(data = voltage, x = hours, status = status)
-voltage_tbl
+## ----dataset_shock, message = FALSE-------------------------------------------
+# Data:
+shock_tbl <- reliability_data(data = shock, x = distance, status = status)
+shock_tbl
 
-## ----probability_plot_weibull, fig.cap = "Figure 1: Plotting positions in Weibull grid.", message = FALSE----
-# Estimating failure probabilities: 
-voltage_cdf <- estimate_cdf(voltage_tbl, "johnson")
+## ---- Parameter estimation procedures-----------------------------------------
+# Estimation of failure probabilities:
+shock_cdf <- estimate_cdf(shock_tbl, methods = "johnson")
 
-# Probability plot: 
-weibull_plot <- plot_prob(
-  voltage_cdf,
+# Rank Regression:
+rr_weibull <- rank_regression(shock_cdf, distribution = "weibull")
+
+# Maximum Likelihood Estimation: 
+ml_weibull <- ml_estimation(shock_tbl, distribution = "weibull")
+
+## ---- Confidence intervals for model parameters-------------------------------
+# Confidence intervals based on Rank Regression: 
+rr_weibull$confint
+
+# Confidence intervals based on Maximum Likelihood Estimation:
+ml_weibull$confint
+
+## ---- Confidence level--------------------------------------------------------
+# Confidence intervals based on another confidence level: 
+ml_weibull_99 <- ml_estimation(shock_tbl, distribution = "weibull", conf_level = 0.99)
+ml_weibull_99$confint
+
+## ---- Confidence intervals for probabilities----------------------------------
+# Beta-Binomial confidence bounds:
+conf_bb <- confint_betabinom(
+  x = rr_weibull, 
+  b_lives = c(0.01, 0.1, 0.5), 
+  bounds = "two_sided", 
+  conf_level = 0.95, 
+  direction = "y"
+)
+conf_bb
+
+# Fisher's normal approximation confidence intervals:
+conf_fisher <- confint_fisher(x = ml_weibull)
+conf_fisher
+
+## ---- Preparation for visualization-------------------------------------------
+# Probability plot
+weibull_grid <- plot_prob(
+  shock_cdf,
   distribution = "weibull", 
   title_main = "Weibull Probability Plot", 
-  title_x = "Time in Hours", 
+  title_x = "Mileage in km", 
   title_y = "Probability of Failure in %",
   title_trace = "Defectives",
   plot_method = "ggplot2"
 )
 
-weibull_plot
-
-## ----segmented_weibull_I, fig.cap = "Figure 2: Subgroup-specific plotting positions using segmented regression.", message = FALSE----
-# Applying mixmod_regression(): 
-mixreg_weib <- mixmod_regression(
-  x = voltage_cdf, 
-  distribution = "weibull", 
-  k = 2
+## ---- BBB on failure probabilities, fig.cap = "Figure 1: Beta-Binomial confidence bounds for failure probabilities.", message = FALSE----
+# Beta-Binomial confidence intervals: 
+weibull_conf_bb <- plot_conf(
+  weibull_grid, 
+  conf_bb, 
+  title_trace_mod = "Rank Regression", 
+  title_trace_conf = "Beta-Binomial Bounds"
 )
+weibull_conf_bb
 
-mixreg_weib
+## ---- FI on failure probabilities, fig.cap = "Figure 2: Fisher's normal approximation confidence intervals for failure probabilities.", message = FALSE----
+# Fisher's normal approximation confidence intervals:
+weibull_conf_fisher <- plot_conf(
+  weibull_grid, 
+  conf_fisher, 
+  title_trace_mod = "Maximum Likelihood", 
+  title_trace_conf = "Fisher's Confidence Intervals"
+  )
+weibull_conf_fisher
 
-# Using plot_prob_mix(). 
-mix_reg_plot <- plot_prob(
-  x = mixreg_weib, 
-  title_main = "Weibull Mixture Regression", 
-  title_x = "Time in Hours", 
-  title_y = "Probability of Failure", 
-  title_trace = "Subgroup",
-  plot_method = "ggplot2"
+## ---- Confidence intervals for quantiles--------------------------------------
+# Computation of confidence intervals for quantiles: 
+## Beta-Binomial confidence intervals: 
+conf_bb_x <- confint_betabinom(
+  x = rr_weibull, 
+  bounds = "upper", 
+  conf_level = 0.95, 
+  direction = "x"
 )
+conf_bb_x
 
-mix_reg_plot
+## Fisher's normal approximation confidence intervals:
+conf_fisher_x <- confint_fisher(x = ml_weibull, bounds = "lower", direction = "x")
+conf_fisher_x
 
-## ----segmented_weibull_II, fig.cap = "Figure 3: Subgroup-specific regression lines using segmented regression.", message = FALSE----
-# Using plot_mod() to visualize regression lines of subgroups: 
-mix_reg_lines <- plot_mod(
-  mix_reg_plot, 
-  x = mixreg_weib, 
-  title_trace = "Fitted Line"
+## ---- BBB on quantiles, fig.cap = "Figure 3: One-sided (upper) Beta-Binomial confidence bound for quantiles.", message = FALSE----
+# Visualization: 
+## Beta-Binomial confidence intervals: 
+weibull_conf_bb_x <- plot_conf(
+  weibull_grid,
+  conf_bb_x, 
+  title_trace_mod = "Rank Regression", 
+  title_trace_conf = "Beta-Binomial Bounds"
 )
+weibull_conf_bb_x
 
-mix_reg_lines
-
-## ----em_weibull_I, fig.cap = "Figure 4: Subgroup-specific plotting positions using EM algorithm.", message = FALSE----
-# Applying mixmod_regression(): 
-mix_em_weib <- mixmod_em(
-  x = voltage_tbl, 
-  distribution = "weibull",
-  k = 2
+## ---- FI on quantiles, fig.cap = "Figure 4: One-sided (lower) normal approximation confidence interval for quantiles.", message = FALSE----
+## Fisher's normal approximation confidence intervals:
+weibull_conf_fisher_x <- plot_conf(
+  weibull_grid, 
+  conf_fisher_x, 
+  title_trace_mod = "Maximum Likelihood", 
+  title_trace_conf = "Fisher's Confidence Intervals"
 )
-
-mix_em_weib
-
-# Using plot_prob(): 
-mix_em_plot <- plot_prob(
-  x = mix_em_weib,
-  title_main = "Weibull Mixture EM", 
-  title_x = "Time in Hours", 
-  title_y = "Probability of Failure", 
-  title_trace = "Subgroup",
-  plot_method = "ggplot2"
-)
-
-mix_em_plot
-
-## ----em_weibull_II, fig.cap = "Figure 5: Subgroup-specific regression lines using EM algorithm.", message = FALSE----
-
-# Using plot_mod() to visualize regression lines of subgroups: 
-mix_em_lines <- plot_mod(
-  mix_em_plot, 
-  x = mix_em_weib, 
-  title_trace = "Fitted Line"
-)
-
-mix_em_lines
+weibull_conf_fisher_x
 

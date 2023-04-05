@@ -6,39 +6,38 @@
 #' into account.
 #'
 #' @template details-estimate-cdf
-#' @templateVar header One or multiple techniques can be used for the \code{methods} argument:
+#' @templateVar header One or multiple techniques can be used for the `methods` argument:
 #'
-#' @param x A tibble returned by \link{reliability_data}.
-#' @param methods One or multiple methods of \code{"mr"}, \code{"johnson"},
-#'   \code{"kaplan"} or \code{"nelson"} used for the estimation of failure
-#'   probabilities. See 'Details'.
+#' @param x A tibble with class `wt_reliability_data` returned by [reliability_data].
+#' @param methods One or multiple methods of `"mr"`, `"johnson"`, `"kaplan"` or
+#' `"nelson"` used for the estimation of failure probabilities. See 'Details'.
 #' @param options A list of named options. See 'Options'.
 #' @template dots
 #'
-#' @return A tibble containing the following columns:
-#' \itemize{
-#'   \item \code{id} : Identification for every unit.
-#'   \item \code{x} : Lifetime characteristic.
-#'   \item \code{status} : Binary data (0 or 1) indicating whether a unit is a
-#'     right censored observation (= 0) or a failure (= 1).
-#'   \item \code{rank} : The (computed) ranks. Determined for methods \code{"mr"}
-#'     and \code{"johnson"}, filled with \code{NA} for other methods or if
-#'     \code{status = 0}.
-#'   \item \code{prob} : Estimated failure probabilities, \code{NA} if \code{status = 0}.
-#'   \item \code{cdf_estimation_method} : Specified method for the estimation of
-#'     failure probabilities.
-#' }
+#' @return A tibble with class `wt_cdf_estimation` containing the following columns:
+#'
+#' * `id` : Identification for every unit.
+#' * `x` : Lifetime characteristic.
+#' * `status` : Binary data (0 or 1) indicating whether a unit is a right
+#'   censored observation (= 0) or a failure (= 1).
+#' * `rank` : The (computed) ranks. Determined for methods `"mr"` and `"johnson"`,
+#'   filled with `NA` for other methods or if `status = 0`.
+#' * `prob` : Estimated failure probabilities, `NA` if `status = 0`.
+#' * `cdf_estimation_method` : Specified method for the estimation of failure
+#'   probabilities.
 #'
 #' @section Options:
-#' The listed options can only be applied for method \code{"mr"}:
-#' \itemize{
-#'   \item \code{mr_method} : \code{"benard"} (default) or \code{"invbeta"}.
-#'   \item \code{mr_ties.method} : \code{"max"} (default), \code{"min"} or \code{"average"}.
-#' }
+#' Argument `options` is a named list of options:
 #'
-#' @references \emph{NIST/SEMATECH e-Handbook of Statistical Methods},
-#' \emph{8.2.1.5. Empirical model fitting - distribution free (Kaplan-Meier) approach},
-#' \href{https://www.itl.nist.gov/div898/handbook/apr/section2/apr215.htm}{NIST SEMATECH},
+#' | Method    | Name             | Value                                     |
+#' | --------- | ---------------- | ----------------------------------------- |
+#' | `mr`      | `mr_method`      | `"benard"` (default) or `"invbeta"`       |
+#' | `mr`      | `mr_ties.method` | `"max"` (default), `"min"` or `"average"` |
+#' | `johnson` | `johnson_method` | `"benard"` (default) or `"invbeta"`       |
+#'
+#' @references *NIST/SEMATECH e-Handbook of Statistical Methods*,
+#' *8.2.1.5. Empirical model fitting - distribution free (Kaplan-Meier) approach*,
+#' [NIST SEMATECH](https://www.itl.nist.gov/div898/handbook/apr/section2/apr215.htm),
 #' December 3, 2020
 #'
 #' @examples
@@ -71,14 +70,17 @@
 #'   )
 #' )
 #'
-#' # Example 4 - Multiple methods and option for 'mr':
+#' # Example 4 - Multiple methods and options:
 #' prob_tbl_4 <- estimate_cdf(
 #'   x = data,
 #'   methods = c("mr", "johnson"),
 #'   options = list(
-#'     mr_ties.method = "max"
+#'     mr_ties.method = "max",
+#'     johnson_method = "invbeta"
 #'   )
 #' )
+#'
+#' @md
 #'
 #' @export
 estimate_cdf <- function(x, ...) {
@@ -105,24 +107,24 @@ estimate_cdf.wt_reliability_data <- function(x,
     unique(match.arg(methods, several.ok = TRUE))
   }
 
-  method_funs <- list(
-    mr = mr_method_,
-    johnson = johnson_method_,
-    kaplan = kaplan_method_,
-    nelson = nelson_method_
-  )
-
   tbl_out <- purrr::map_dfr(methods, function(method) {
     if (method == "mr") {
-      method_funs[[method]](
+      mr_method_(
         data = x,
-        method = if (is.null(options$mr_method)) "benard" else
-          options$mr_method,
-        ties.method = if (is.null(options$mr_ties.method)) "max" else
-          options$mr_ties.method
+        method = options$mr_method %||% "benard",
+        ties.method = options$mr_ties.method %||% "max"
+      )
+    } else if (method == "johnson") {
+      johnson_method_(
+        data = x,
+        method = options$johnson_method %||% "benard"
       )
     } else {
-      method_funs[[method]](data = x)
+      switch(
+        method,
+        "kaplan" = kaplan_method_(data = x),
+        "nelson" = nelson_method_(data = x)
+      )
     }
   })
 
@@ -138,22 +140,22 @@ estimate_cdf.wt_reliability_data <- function(x,
 #' @inherit estimate_cdf description return references
 #'
 #' @template details-estimate-cdf
-#' @templateVar header The following techniques can be used for the \code{method} argument:
+#' @templateVar header The following techniques can be used for the `method` argument:
 #'
 #' @inheritParams estimate_cdf
 #' @param x A numeric vector which consists of lifetime data. Lifetime
 #'   data could be every characteristic influencing the reliability of a product,
 #'   e.g. operating time (days/months in service), mileage (km, miles), load
 #'   cycles.
-#' @param status A vector of binary data (0 or 1) indicating whether unit \emph{i}
+#' @param status A vector of binary data (0 or 1) indicating whether unit *i*
 #'   is a right censored observation (= 0) or a failure (= 1).
-#' @param id A vector for the identification of every unit. Default is \code{NULL}.
+#' @param id A vector for the identification of every unit. Default is `NULL`.
 #' @param method Method used for the estimation of failure probabilities. See
 #'   'Details'.
 #'
 #' @inheritSection estimate_cdf Options
 #'
-#' @seealso \code{\link{estimate_cdf}}
+#' @seealso [estimate_cdf]
 #'
 #' @examples
 #' # Vectors:
@@ -179,6 +181,8 @@ estimate_cdf.wt_reliability_data <- function(x,
 #'   )
 #' )
 #'
+#' @md
+#'
 #' @export
 estimate_cdf.default <- function(x,
                                  status,
@@ -196,7 +200,7 @@ estimate_cdf.default <- function(x,
 
   data <- reliability_data(x = x, status = status, id = id)
 
-  method = match.arg(method)
+  method <- match.arg(method)
 
   estimate_cdf.wt_reliability_data(
     x = data,
@@ -233,35 +237,33 @@ print.wt_cdf_estimation <- function(x, ...) {
 #' @description
 #' `r lifecycle::badge("soft-deprecated")`
 #'
-#' \code{mr_method()} is no longer under active development, switching
-#' to \code{\link{estimate_cdf}} is recommended.
+#' `mr_method()` is no longer under active development, switching to [estimate_cdf]
+#' is recommended.
 #'
 #' @details
-#' This non-parametric approach (\emph{Median Ranks}) is used to estimate the
+#' This non-parametric approach (*Median Ranks*) is used to estimate the
 #' failure probabilities in terms of complete data. Two methods are available to
-#' estimate the cumulative distribution function \emph{F(t)}:
-#' \itemize{
-#'   \item "benard" : Benard's approximation for Median Ranks.
-#'   \item "invbeta" : Exact Median Ranks using the inverse beta distribution.
-#' }
+#' estimate the cumulative distribution function *F(t)*:
+#'
+#' * `"benard"` : Benard's approximation for Median Ranks.
+#' * `"invbeta"` : Exact Median Ranks using the inverse beta distribution.
 #'
 #' @inheritParams estimate_cdf.default
+#' @param status A vector of ones indicating that every unit has failed.
+#' @param method Method for the estimation of the cdf. Can be `"benard"` (default)
+#' or `"invbeta"`.
+#' @param ties.method A character string specifying how ties are treated,
+#' default is `"max"`.
 #'
-#' @param status A vector of ones indicating that every unit \emph{i} has failed.
-#' @param method Method for the estimation of the cdf. Can be "benard" (default)
-#' or "invbeta".
-#' @param ties.method A character string specifying how ties are treated, default is "max".
+#' @return A tibble with only failed units containing the following columns:
 #'
-#' @return A tibble with failed units containing the following columns:
-#' \itemize{
-#'   \item \code{id} : Identification for every unit.
-#'   \item \code{x} : Lifetime characteristic.
-#'   \item \code{status} : Status of failed units (always 1).
-#'   \item \code{rank} : The assigned ranks.
-#'   \item \code{prob} : Estimated failure probabilities.
-#'   \item \code{method} : Specified method for the estimation of failure
-#'     probabilities (always 'mr').
-#' }
+#' * `id` : Identification for every unit.
+#' * `x` : Lifetime characteristic.
+#' * `status` : Status of failed units (always 1).
+#' * `rank` : Assigned ranks.
+#' * `prob` : Estimated failure probabilities.
+#' * `cdf_estimation_method` : Specified method for the estimation of failure
+#'    probabilities (always 'mr').
 #'
 #' @examples
 #' # Vectors:
@@ -301,11 +303,11 @@ mr_method <- function(x,
 
   if (!purrr::is_null(id)) {
     if (!((length(x) == length(status)) && (length(x) == length(id)))) {
-      stop("'x', 'status' and 'id' must be of same length!")
+      stop("'x', 'status' and 'id' must be of same length!", call. = FALSE)
     }
   } else {
     if (length(x) != length(status)) {
-      stop("'x' and 'status' must be of same length!")
+      stop("'x' and 'status' must be of same length!", call. = FALSE)
     }
   }
 
@@ -313,6 +315,8 @@ mr_method <- function(x,
 
   mr_method_(data, method, ties.method)
 }
+
+
 
 mr_method_ <- function(data,
                        method = "benard",
@@ -325,7 +329,6 @@ mr_method_ <- function(data,
   }
 
   tbl_in <- data %>%
-    dplyr::rename(x = attr(data, "characteristic")) %>%
     # Remove additional classes
     tibble::as_tibble()
 
@@ -348,9 +351,8 @@ mr_method_ <- function(data,
 
   tbl_out <- tbl_calc %>%
     dplyr::mutate(cdf_estimation_method = "mr") %>%
-    dplyr::select(
-      .data$id, .data$x, .data$status, .data$rank, .data$prob,
-      .data$cdf_estimation_method
+    dplyr::relocate(
+      "id", "x", "status", "rank", "prob", "cdf_estimation_method"
     )
 
   tbl_out
@@ -363,31 +365,29 @@ mr_method_ <- function(data,
 #' @description
 #' `r lifecycle::badge("soft-deprecated")`
 #'
-#' \code{johnson_method()} is no longer under active development, switching
-#' to \code{\link{estimate_cdf}} is recommended.
+#' `johnson_method()` is no longer under active development, switching to
+#' [estimate_cdf] is recommended.
 #'
 #' @details
 #' This non-parametric approach is used to estimate the failure probabilities in
-#' terms of uncensored or (multiple) right censored data. Compared to complete data the
-#' correction is done by calculating adjusted ranks which takes non-defective
-#' units into account.
+#' terms of uncensored or (multiple) right censored data. Compared to complete
+#' data the correction is done by calculating adjusted ranks which takes
+#' non-defective units into account.
 #'
 #' @inheritParams mr_method
-#'
-#' @param status A vector of binary data (0 or 1) indicating whether unit \emph{i}
-#'   is a right censored observation (= 0) or a failure (= 1).
+#' @param status A vector of binary data (0 or 1) indicating whether a unit is
+#' a right censored observation (= 0) or a failure (= 1).
 #'
 #' @return A tibble containing the following columns:
-#' \itemize{
-#'   \item \code{id} : Identification for every unit.
-#'   \item \code{x} : Lifetime characteristic.
-#'   \item \code{status} : Binary data (0 or 1) indicating whether a unit is a
-#'     right censored observation (= 0) or a failure (= 1).
-#'   \item \code{rank} : The adjusted ranks.
-#'   \item \code{prob} : Estimated failure probabilities, \code{NA} if \code{status = 0}.
-#'   \item \code{cdf_estimation_method} : Specified method for the estimation of
-#'     failure probabilities (always 'johnson').
-#' }
+#'
+#' * `id` : Identification for every unit.
+#' * `x` : Lifetime characteristic.
+#' * `status` : Binary data (0 or 1) indicating whether a unit is a right
+#'   censored observation (= 0) or a failure (= 1).
+#' * `rank` : Adjusted ranks, `NA` if `status = 0`.
+#' * `prob` : Estimated failure probabilities, `NA` if `status = 0`.
+#' * `cdf_estimation_method` : Specified method for the estimation of failure
+#'   probabilities (always 'johnson').
 #'
 #' @examples
 #' # Vectors:
@@ -414,29 +414,33 @@ mr_method_ <- function(data,
 #' @export
 johnson_method <- function(x,
                            status,
-                           id = NULL
+                           id = NULL,
+                           method = c("benard", "invbeta")
 ) {
   deprecate_soft("2.0.0", "johnson_method()", "estimate_cdf()")
 
+  method <- match.arg(method)
+
   if (!purrr::is_null(id)) {
     if (!((length(x) == length(status)) && (length(x) == length(id)))) {
-      stop("'x', 'status' and 'id' must be of same length!")
+      stop("'x', 'status' and 'id' must be of same length!", call. = FALSE)
     }
   } else {
     if (length(x) != length(status)) {
-      stop("'x' and 'status' must be of same length!")
+      stop("'x' and 'status' must be of same length!", call. = FALSE)
     }
   }
 
   data <- reliability_data(x = x, status = status, id = id)
 
-  johnson_method_(data)
+  johnson_method_(data, method)
 }
 
-johnson_method_ <- function(data) {
+
+
+johnson_method_ <- function(data, method = "benard") {
 
   tbl_in <- data %>%
-    dplyr::rename(x = attr(data, "characteristic")) %>%
     # Remove additional classes
     tibble::as_tibble()
 
@@ -459,8 +463,19 @@ johnson_method_ <- function(data) {
         n_out = .data$n_out,
         n = sum(.data$n_i)
       )
-    ) %>%
-    dplyr::mutate(prob = (.data$rank - .3) / (sum(.data$n_i) + .4))
+    )
+
+  if (method == "benard") {
+    tbl_calc <- dplyr::mutate(
+      tbl_calc,
+      prob = (.data$rank - .3) / (sum(.data$n_i) + .4)
+    )
+  } else {
+    tbl_calc <- dplyr::mutate(
+      tbl_calc,
+      prob = stats::qbeta(.5, .data$rank, sum(.data$n_i) - .data$rank + 1)
+    )
+  }
 
   tbl_out <- tbl_in %>%
     dplyr::arrange(.data$x) %>%
@@ -477,9 +492,8 @@ johnson_method_ <- function(data) {
       )
     ) %>%
     dplyr::mutate(cdf_estimation_method = "johnson") %>%
-    dplyr::select(
-      .data$id, .data$x, .data$status, .data$rank, .data$prob,
-      .data$cdf_estimation_method
+    dplyr::relocate(
+      "id", "x", "status", "rank", "prob", "cdf_estimation_method"
     )
 
   tbl_out
@@ -492,37 +506,32 @@ johnson_method_ <- function(data) {
 #' @description
 #' `r lifecycle::badge("soft-deprecated")`
 #'
-#' \code{kaplan_method()} is no longer under active development, switching
-#' to \code{\link{estimate_cdf}} is recommended.
+#' `kaplan_method()` is no longer under active development, switching to
+#' [estimate_cdf] is recommended.
 #'
 #' @details
 #' Whereas the non-parametric Kaplan-Meier estimator is used to estimate the
-#' survival function \emph{S(t)} in terms of (multiple) right censored data, the
-#' complement is an estimate of the cumulative distribution function \emph{F(t)}.
+#' survival function *S(t)* in terms of (multiple) right censored data, the
+#' complement is an estimate of the cumulative distribution function *F(t)*.
 #' One modification is made in contrast to the original Kaplan-Meier estimator
 #' (see 'References').
-#'
-#' \strong{Note} : The \emph{Kaplan-Meier} estimator does not assign ranks to
-#' observations, so the beta-binomial confidence intervals \emph{cannot} be
-#' calculated using this method.
 #'
 #' @inheritParams johnson_method
 #'
 #' @return A tibble containing the following columns:
-#' \itemize{
-#'   \item \code{id} : Identification for every unit.
-#'   \item \code{x} : Lifetime characteristic.
-#'   \item \code{status} : Binary data (0 or 1) indicating whether a unit is a
-#'     right censored observation (= 0) or a failure (= 1).
-#'   \item \code{rank} : Filled with \code{NA}.
-#'   \item \code{prob} : Estimated failure probabilities, \code{NA} if \code{status = 0}.
-#'   \item \code{cdf_estimation_method} : Specified method for the estimation of
-#'     failure probabilities (always 'kaplan').
-#' }
 #'
-#' @references \emph{NIST/SEMATECH e-Handbook of Statistical Methods},
-#' \emph{8.2.1.5. Empirical model fitting - distribution free (Kaplan-Meier) approach},
-#' \href{https://www.itl.nist.gov/div898/handbook/apr/section2/apr215.htm}{NIST SEMATECH},
+#' * `id` : Identification for every unit.
+#' * `x` : Lifetime characteristic.
+#' * `status` : Binary data (0 or 1) indicating whether a unit is a right
+#'   censored observation (= 0) or a failure (= 1).
+#' * `rank` : Filled with `NA`.
+#' * `prob` : Estimated failure probabilities, `NA` if `status = 0`.
+#' * `cdf_estimation_method` : Specified method for the estimation of failure
+#'   probabilities (always 'kaplan').
+#'
+#' @references *NIST/SEMATECH e-Handbook of Statistical Methods*,
+#' *8.2.1.5. Empirical model fitting - distribution free (Kaplan-Meier) approach*,
+#' [NIST SEMATECH](https://www.itl.nist.gov/div898/handbook/apr/section2/apr215.htm),
 #' December 3, 2020
 #'
 #' @examples
@@ -557,11 +566,11 @@ kaplan_method <- function(x,
 
   if (!purrr::is_null(id)) {
     if (!((length(x) == length(status)) && (length(x) == length(id)))) {
-      stop("'x', 'status' and 'id' must be of same length!")
+      stop("'x', 'status' and 'id' must be of same length!", call. = FALSE)
     }
   } else {
     if (length(x) != length(status)) {
-      stop("'x' and 'status' must be of same length!")
+      stop("'x' and 'status' must be of same length!", call. = FALSE)
     }
   }
 
@@ -570,14 +579,18 @@ kaplan_method <- function(x,
   kaplan_method_(data)
 }
 
+
+
 kaplan_method_ <- function(data) {
 
   if (all(data$status == 1)) {
-    warning('Use methods = "mr" since there is no censored data problem!')
+    warning(
+      'Use methods = "mr" since there is no censored data problem!',
+      call. = FALSE
+    )
   }
 
   tbl_in <- data %>%
-    dplyr::rename(x = attr(data, "characteristic")) %>%
     # Remove additional classes
     tibble::as_tibble()
 
@@ -623,13 +636,13 @@ kaplan_method_ <- function(data) {
       ),
       cdf_estimation_method = "kaplan"
     ) %>%
-    dplyr::select(
-      .data$id, .data$x, .data$status, .data$rank, .data$prob,
-      .data$cdf_estimation_method
+    dplyr::relocate(
+      "id", "x", "status", "rank", "prob", "cdf_estimation_method"
     )
 
   tbl_out
 }
+
 
 
 #' Estimation of Failure Probabilities using the Nelson-Aalen Estimator
@@ -637,8 +650,8 @@ kaplan_method_ <- function(data) {
 #' @description
 #' `r lifecycle::badge("soft-deprecated")`
 #'
-#' \code{nelson_method()} is no longer under active development, switching
-#' to \code{\link{estimate_cdf}} is recommended.
+#' `nelson_method()` is no longer under active development, switching to
+#' [estimate_cdf] is recommended.
 #'
 #' @details
 #' This non-parametric approach estimates the cumulative hazard rate in
@@ -646,23 +659,18 @@ kaplan_method_ <- function(data) {
 #' hazard rate with the hazard rate according to Nelson-Aalen one can calculate
 #' the failure probabilities.
 #'
-#' \strong{Note} : The \emph{Nelson-Aalen} estimator does not assign ranks to
-#' observations, so the beta-binomial confidence intervals \emph{cannot} be
-#' calculated using this method.
-#'
 #' @inheritParams johnson_method
 #'
 #' @return A tibble containing the following columns:
-#' \itemize{
-#'   \item \code{id} : Identification for every unit.
-#'   \item \code{x} : Lifetime characteristic.
-#'   \item \code{status} : Binary data (0 or 1) indicating whether a unit is a
-#'     right censored observation (= 0) or a failure (= 1).
-#'   \item \code{rank} : Filled with \code{NA}.
-#'   \item \code{prob} : Estimated failure probabilities, \code{NA} if \code{status = 0}.
-#'   \item \code{cdf_estimation_method} : Specified method for the estimation of
-#'     failure probabilities (always 'nelson').
-#' }
+#'
+#' * `id` : Identification for every unit.
+#' * `x` : Lifetime characteristic.
+#' * `status` : Binary data (0 or 1) indicating whether a unit is a right
+#'   censored observation (= 0) or a failure (= 1).
+#' * `rank` : Filled with `NA`.
+#' * `prob` : Estimated failure probabilities, `NA` if `status = 0`.
+#' * `cdf_estimation_method` : Specified method for the estimation of failure
+#'   probabilities (always 'nelson').
 #'
 #' @examples
 #' # Vectors:
@@ -689,11 +697,11 @@ nelson_method <- function(x,
 
   if (!purrr::is_null(id)) {
     if (!((length(x) == length(status)) && (length(x) == length(id)))) {
-      stop("'x', 'status' and 'id' must be of same length!")
+      stop("'x', 'status' and 'id' must be of same length!", call. = FALSE)
     }
   } else {
     if (length(x) != length(status)) {
-      stop("'x' and 'status' must be of same length!")
+      stop("'x' and 'status' must be of same length!", call. = FALSE)
     }
   }
 
@@ -702,14 +710,18 @@ nelson_method <- function(x,
   nelson_method_(data)
 }
 
+
+
 nelson_method_ <- function(data) {
 
   if (all(data$status == 1)) {
-    warning('Use methods = "mr" since there is no censored data problem!')
+    warning(
+      'Use methods = "mr" since there is no censored data problem!',
+      call. = FALSE
+    )
   }
 
   tbl_in <- data %>%
-    dplyr::rename(x = attr(data, "characteristic")) %>%
     # Remove additional classes
     tibble::as_tibble()
 
@@ -741,9 +753,8 @@ nelson_method_ <- function(data) {
       ),
       cdf_estimation_method = "nelson"
     ) %>%
-    dplyr::select(
-      .data$id, .data$x, .data$status, .data$rank, .data$prob,
-      .data$cdf_estimation_method
+    dplyr::relocate(
+      "id", "x", "status", "rank", "prob", "cdf_estimation_method"
     )
 
   tbl_out

@@ -13,23 +13,20 @@
 <meta name="author" content="Tim-Gunnar Hensel" />
 <meta name="author" content="David Barkemeyer" />
 
-<meta name="date" content="2021-01-12" />
+<meta name="date" content="2023-04-04" />
 
 <title>Life Data Analysis Part I - Estimation of Failure Probabilities</title>
 
-<script>// Hide empty <a> tag within highlighted CodeBlock for screen reader accessibility (see https://github.com/jgm/pandoc/issues/6352#issuecomment-626106786) -->
-// v0.0.1
-// Written by JooYoung Seo (jooyoung@psu.edu) and Atsushi Yasumoto on June 1st, 2020.
-
-document.addEventListener('DOMContentLoaded', function() {
-  const codeList = document.getElementsByClassName("sourceCode");
-  for (var i = 0; i < codeList.length; i++) {
-    var linkList = codeList[i].getElementsByTagName('a');
-    for (var j = 0; j < linkList.length; j++) {
-      if (linkList[j].innerHTML === "") {
-        linkList[j].setAttribute('aria-hidden', 'true');
-      }
-    }
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
   }
 });
 </script>
@@ -44,21 +41,29 @@ document.addEventListener('DOMContentLoaded', function() {
     </style>
 
 
-<style type="text/css">code{white-space: pre;}</style>
+
+<style type="text/css">
+  code {
+    white-space: pre;
+  }
+  .sourceCode {
+    overflow: visible;
+  }
+</style>
 <style type="text/css" data-origin="pandoc">
-code.sourceCode > span { display: inline-block; line-height: 1.25; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-code.sourceCode > span:empty { height: 1.2em; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
 .sourceCode { overflow: visible; }
-code.sourceCode { white-space: pre; position: relative; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
 @media screen {
 div.sourceCode { overflow: auto; }
 }
 @media print {
-code.sourceCode { white-space: pre-wrap; }
-code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
 }
 pre.numberSource code
   { counter-reset: source-line 0; }
@@ -78,7 +83,7 @@ pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-le
 div.sourceCode
   {   }
 @media screen {
-code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
 code span.al { color: #ff0000; font-weight: bold; } /* Alert */
 code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
@@ -118,13 +123,20 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   for (var i = 0; i < sheets.length; i++) {
     if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
     try { var rules = sheets[i].cssRules; } catch (e) { continue; }
-    for (var j = 0; j < rules.length; j++) {
+    var j = 0;
+    while (j < rules.length) {
       var rule = rules[j];
       // check if there is a div.sourceCode rule
-      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
       var style = rule.style.cssText;
       // check if color or background-color is set
-      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
       // replace div.sourceCode by a pre.sourceCode rule
       sheets[i].deleteRule(j);
       sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
@@ -328,209 +340,326 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
-<h1 class="title toc-ignore">Life Data Analysis Part I - Estimation of Failure Probabilities</h1>
+<h1 class="title toc-ignore">Life Data Analysis Part I - Estimation of
+Failure Probabilities</h1>
 <h3 class="subtitle">A Non-parametric Approach</h3>
 <h4 class="author">Tim-Gunnar Hensel</h4>
 <h4 class="author">David Barkemeyer</h4>
-<h4 class="date">2021-01-12</h4>
+<h4 class="date">2023-04-04</h4>
 
 
 
-<p>This document presents non-parametric estimation methods for the computation of failure probabilities of complete data (failures) taking (multiple) right-censored units into account. A unit can be either a single component, an assembly or an entire system.</p>
-<p>Further, the estimation results are presented in distribution-specific probability plots.</p>
+<p>This document presents non-parametric estimation methods for the
+computation of failure probabilities of complete data (failures) taking
+(multiple) right-censored units into account. A unit can be either a
+single component, an assembly or an entire system.</p>
+<p>Furthermore, the estimation results are presented in
+distribution-specific probability plots.</p>
 <div id="introduction-to-life-data-analysis" class="section level2">
 <h2>Introduction to Life Data Analysis</h2>
-<p>If the lifetime (or any other damage-equivalent quantity such as distance or load cycles) of a unit is considered to be a continuous random variable <em>T</em>, then the probability that a unit has failed at <em>t</em> is defined by its <em>CDF (cumulative distribution function)</em> <em>F(t)</em>.</p>
+<p>If the lifetime (or any other damage-equivalent quantity such as
+distance or load cycles) of a unit is considered to be a continuous
+random variable <em>T</em>, then the probability that a unit has failed
+at <em>t</em> is defined by its <em>CDF (cumulative distribution
+function)</em> <em>F(t)</em>.</p>
 <p><span class="math display">\[ P(T\leq t) = F(t) \]</span></p>
-<p>In order to obtain an estimate of the <em>CDF</em> for each observation <span class="math inline">\(t_1, t_2, ..., t_n\)</span> two approaches are possible. Using a parametric lifetime distribution requires that the underlying assumptions for the sample data are valid. If the distribution-specific assumptions are correct, the model parameters can be estimated and the <em>CDF</em> is computable. But if assumptions are not held, interpretations and derived conclusions are not reliable.</p>
-<p>A more general approach for the calculation of cumulative failure probabilities is to use non-parametric statistical estimators <span class="math inline">\(\hat{F}(t_1), \hat{F}(t_2), ..., \hat{F}(t_n)\)</span>. In comparison to a parametric distribution no general assumptions must be held. For non-parametric estimators, an ordered sample of size <span class="math inline">\(n\)</span> is needed. Starting at <span class="math inline">\(1\)</span>, the ranks <span class="math inline">\(i \in \{1, 2, ..., n \}\)</span> are assigned to the ascending sorted sample values. Since there is a known relationship between ranks and corresponding ranking probabilities a <em>CDF</em> can be determined.</p>
-<p>But rank distributions are systematically skewed distributions and thus the median value instead of the expected value <span class="math inline">\(E\left[F\left(t_i\right)\right] = \frac{i}{n + 1}\)</span> is used for the estimation <a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>. This skewness is visualized in <em>Figure 1</em>.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a><span class="kw">library</span>(dplyr) <span class="co"># data manipulation </span></span>
-<span id="cb1-2"><a href="#cb1-2"></a><span class="kw">library</span>(ggplot2) <span class="co"># visualization</span></span>
-<span id="cb1-3"><a href="#cb1-3"></a></span>
-<span id="cb1-4"><a href="#cb1-4"></a>x &lt;-<span class="st"> </span><span class="kw">seq</span>(<span class="dv">0</span>, <span class="dv">1</span>, <span class="dt">length.out =</span> <span class="dv">100</span>) <span class="co"># CDF</span></span>
-<span id="cb1-5"><a href="#cb1-5"></a>n &lt;-<span class="st"> </span><span class="dv">10</span> <span class="co"># sample size</span></span>
-<span id="cb1-6"><a href="#cb1-6"></a>i &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">9</span>) <span class="co"># ranks</span></span>
-<span id="cb1-7"><a href="#cb1-7"></a>r &lt;-<span class="st"> </span>n <span class="op">-</span><span class="st"> </span>i <span class="op">+</span><span class="st"> </span><span class="dv">1</span> <span class="co"># inverse ranking</span></span>
-<span id="cb1-8"><a href="#cb1-8"></a></span>
-<span id="cb1-9"><a href="#cb1-9"></a>df_dens &lt;-<span class="st"> </span><span class="kw">expand.grid</span>(<span class="dt">cdf =</span> x, <span class="dt">i =</span> i) <span class="op">%&gt;%</span><span class="st"> </span></span>
-<span id="cb1-10"><a href="#cb1-10"></a><span class="st">  </span><span class="kw">mutate</span>(<span class="dt">n =</span> n, <span class="dt">r =</span> n <span class="op">-</span><span class="st"> </span>i <span class="op">+</span><span class="st"> </span><span class="dv">1</span>, <span class="dt">pdf =</span> <span class="kw">dbeta</span>(<span class="dt">x =</span> x, <span class="dt">shape1 =</span> i, <span class="dt">shape2 =</span> r))</span>
-<span id="cb1-11"><a href="#cb1-11"></a></span>
-<span id="cb1-12"><a href="#cb1-12"></a>densplot &lt;-<span class="st"> </span><span class="kw">ggplot</span>(<span class="dt">data =</span> df_dens, <span class="kw">aes</span>(<span class="dt">x =</span> cdf, <span class="dt">y =</span> pdf, <span class="dt">colour =</span> <span class="kw">as.factor</span>(i))) <span class="op">+</span><span class="st"> </span></span>
-<span id="cb1-13"><a href="#cb1-13"></a><span class="st">  </span><span class="kw">geom_line</span>() <span class="op">+</span><span class="st"> </span></span>
-<span id="cb1-14"><a href="#cb1-14"></a><span class="st">  </span><span class="kw">scale_colour_discrete</span>(<span class="dt">guide =</span> <span class="kw">guide_legend</span>(<span class="dt">title =</span> <span class="st">&quot;i&quot;</span>)) <span class="op">+</span><span class="st"> </span></span>
-<span id="cb1-15"><a href="#cb1-15"></a><span class="st">  </span><span class="kw">theme_bw</span>() <span class="op">+</span><span class="st"> </span></span>
-<span id="cb1-16"><a href="#cb1-16"></a><span class="st">  </span><span class="kw">labs</span>(<span class="dt">x =</span> <span class="st">&quot;Failure Probability&quot;</span>, <span class="dt">y =</span> <span class="st">&quot;Density&quot;</span>)</span>
-<span id="cb1-17"><a href="#cb1-17"></a>densplot</span></code></pre></div>
+<p>In order to obtain an estimate of the <em>CDF</em> for each
+observation <span class="math inline">\(t_1, t_2, ..., t_n\)</span> two
+approaches are possible. Using a parametric lifetime distribution
+requires that the underlying assumptions for the sample data are valid.
+If the distribution-specific assumptions are correct, the model
+parameters can be estimated and the <em>CDF</em> is computable. But if
+assumptions are not held, interpretations and derived conclusions are
+not reliable.</p>
+<p>A more general approach for the calculation of cumulative failure
+probabilities is to use non-parametric statistical estimators <span class="math inline">\(\hat{F}(t_1), \hat{F}(t_2), ...,
+\hat{F}(t_n)\)</span>. In comparison to a parametric distribution no
+general assumptions must be held. For non-parametric estimators, an
+ordered sample of size <span class="math inline">\(n\)</span> is needed.
+Starting at <span class="math inline">\(1\)</span>, the ranks <span class="math inline">\(i \in \{1, 2, ..., n \}\)</span> are assigned to
+the ascending sorted sample values. Since there is a known relationship
+between ranks and corresponding ranking probabilities a <em>CDF</em> can
+be determined.</p>
+<p>But rank distributions are systematically skewed distributions and
+thus the median value instead of the expected value <span class="math inline">\(E\left[F\left(t_i\right)\right] = \frac{i}{n +
+1}\)</span> is used for the estimation <a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>. This skewness is
+visualized in <em>Figure 1</em>.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr) <span class="co"># data manipulation </span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2) <span class="co"># visualization</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>x <span class="ot">&lt;-</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">1</span>, <span class="at">length.out =</span> <span class="dv">100</span>) <span class="co"># CDF</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">10</span> <span class="co"># sample size</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>i <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">9</span>) <span class="co"># ranks</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>r <span class="ot">&lt;-</span> n <span class="sc">-</span> i <span class="sc">+</span> <span class="dv">1</span> <span class="co"># inverse ranking</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>df_dens <span class="ot">&lt;-</span> <span class="fu">expand.grid</span>(<span class="at">cdf =</span> x, <span class="at">i =</span> i) <span class="sc">%&gt;%</span> </span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">n =</span> n, <span class="at">r =</span> n <span class="sc">-</span> i <span class="sc">+</span> <span class="dv">1</span>, <span class="at">pdf =</span> <span class="fu">dbeta</span>(<span class="at">x =</span> x, <span class="at">shape1 =</span> i, <span class="at">shape2 =</span> r))</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>densplot <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(<span class="at">data =</span> df_dens, <span class="fu">aes</span>(<span class="at">x =</span> cdf, <span class="at">y =</span> pdf, <span class="at">colour =</span> <span class="fu">as.factor</span>(i))) <span class="sc">+</span> </span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span> </span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_colour_discrete</span>(<span class="at">guide =</span> <span class="fu">guide_legend</span>(<span class="at">title =</span> <span class="st">&quot;i&quot;</span>)) <span class="sc">+</span> </span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>() <span class="sc">+</span> </span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Failure Probability&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Density&quot;</span>)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>densplot</span></code></pre></div>
 <div class="figure">
 <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAqAAAAJACAMAAABlpiR1AAAA21BMVEUAAAAAADoAAGYAOpAAZrYAsPYAv30zMzM6AAA6ADo6AGY6OpA6kLY6kNtNTU1NTW5NTY5NbqtNjshmAABmADpmAGZmkJBmtrZmtv9uTU1uTW5uTY5ubqtuq+SOTU2OTW6OTY6OyP+QOgCQOjqQOmaQkDqQkGaQtpCQ27aQ2/+jpQCrbk2rbm6rbo6ryKur5P+2ZgC22/+2/9u2///Ijk3I///bkDrb/7bb///kq27k///na/Pr6+v4dm3/tmb/yI7/25D/27b/29v/5Kv//7b//8j//9v//+T///+KfwP/AAAACXBIWXMAAA7DAAAOwwHHb6hkAAAgAElEQVR4nO2dD3/cNnqElcRSfGmtxMm19SVn5+S2d42SnNzGVmOvVvZVlrXf/xN1yd0lCRJ/3hcYklhw5ncXr7Q7HJB4BJIgFjjZUFTGOpm7ABTlEwGlshYBpbIWAaWyFgGlshYBpbJWNKBfUpRbGQDqeuMmdovJZkZnE01AGZ11NAFldNbRBJTRWUcTUEZnHU1AGZ11NAFldNbRBJTRWUcTUEZnHU1AGZ11NAFldNbRBJTRWUcTUEZnHU1AGZ11NAFldNbRBJTRWUcTUEZnHU1AGZ11NAFldNbRBJTRWUdPBOjdD282m/sX50/f1T+2r3xFyPF4MXri6GkAfX/+zZvNw88Xm7ffVj+2r7xFyPF4MXri6EkAff3137ct6P1f3uxa0s4rbxFyPF6Mnjh6wlP83Z/fbe5/vKp+al7V33y+cWjteoNajiYE9P3TA5btq0rOIqxTilNeW7LM6JlbUG8RCCijpwRUfQ1KQBk9JaAPPz9v7uKfS+7iCSijZ+gHrRtTWT9oCqHlVdUyo7N+kkRAGU1A8W5GA90EFO9mNNBNQPFuRgPdBBTvZjTQTUDxbkYD3QQU72Y00J01oCld9eVV1TKjCSjezWigm4Di3YwGugko3s1ooJuA4t2MBroJKN7NaKCbgOLdjAa6CSjezWigO29AEwgtr6qWGU1A8W5GA90EFO9mNNBNQPFuRgPdBBTvZjTQTUDxbkYD3QQU72Y00E1A8W5GA92ZAxpPaHlVtcxoAop3MxroJqB4N6OBbgKKdzMa6CageDejgW4CinczGugmoHg3o4FuAop3Mxrozh3QaELLq6plRhNQvJvRQDcBxbsZDXQTULyb0UA3AcW7GQ10E1C8m9FANwHFuxkNdBNQvJvRQHf2gMYSWl5VLTOagOLdjAa6CSjezWigm4Di3YwGugko3s1ooJuA4t2MBroJKN7NaKCbgOLdjAa68wc0ktDyqmqZ0QQU72Y00E1A8W5GA90EFO9mNNBNQPFuRgPdBBTvZjTQnQOgN36tA+9TJSsHQF1vsAVldBYtqOuNQ6GjCC2vqpYZTUDxbkYD3QQU72Y00E1A8W5GA90EFO9mNNBNQPFuRgPdBBTvZjTQTUDxbkYD3ccAaBSh5VXVMqMJKN7NaKCbgOLdjAa6CSjezWigm4Di3YwGugko3s1ooJuA4t2MBroJKN7NaKD7KACNIbS8qlpmNAHFuxkNdBNQvJvRQDcBxbsZDXQTULyb0UA3AcW7GQ10E1C8m9FA93EAGkFoeVW1zGgCinczGugmoHg3o4FuAop3MxroJqB4N6OBbgKKdzMa6CageDejge4jAVRPaHlVtcxoAop3MxroJqB4N6OBbgKKdzMa6CageDejgW4CinczGugmoHg3o4HuYwFUTWh5VbXMaAKKdzMa6CageDejgW4CinczGugmoHg3o4FuAop3MxroJqB4N6OB7qMBVEtoeVW1zGgCinczGugmoHg3o4FuAop3MxroJqB4N6OBbgKKdzMa6CageDejge7jAVRJaHlVtcxoAop3MxroJqB4N6OBbgKKdzMa6J4Q0LfnlS4OL795EyoCAWX01C3o+6fvqn9eX0iKQEAZPTGg9z9eVf88/HIlKQIBZfTEgL79tv7n/sXhXP9lpRuh1tIPUuVoUkD3Dejm7vurTisqbUF1TWh5bckyoycFdH8FulNzHUpAGZ0JoK+fd38goIwOu6cEtDmrVy3pw6/abiYCusToKQHdXYLe/fCm6gf9urmRJ6CMzgNQbREGhdYQWl5VLTOagOLdjAa6CSjezWigm4Di3YwGugko3s1ooJuA4t2MBroJKN7NaKD7qADVEFpeVS0zmoDi3YwGugko3s1ooJuA4t2MBroJKN7NaKCbgOLdjAa6jwtQBaHlVdUyowko3s1ooJuA4t2MBroJKN7NaKCbgOLdjAa6CSjezWig+8gAlRNaXlUtM5qA4t2MBroJKN7NaKCbgOLdjAa6CSjezWigm4Di3YwGugko3s1ooPvYABUTWl5VLTOagOLdjAa6CSjezWigm4Di3YwGugko3s1ooJuA4t2MBrqPDlApoeVV1TKjCSjezWigm4Di3YwGugko3s1ooJuA4t2MBroJKN7NaKD7+AAVElpeVS0zmoDi3YwGugko3s1ooJuA4t2MBroJKN7NaKCbgOLdjAa6jxBQGaHlVdUyowko3s1ooJuA4t2MBroJKN7NaKCbgOLdjAa67XR8+MNP6ggCyugR3MfYgooILa+qlhlNQPFuRgPdx3iKJ6ALis4B0But1moHdazKAVDXG2xBGZ1FC+p6g4Ay+jgBlRBaXlUtM5qA4t2MBroJKN7NaKCbgOLdjAa6j7KjnoAuJ5qA4t2MBroJKN7NaKD7OAEVEFpeVS0zmoDi3YwGugko3s1ooJuA4t2MBroJKN7NaKCbgOLdjAa6CSjezWig+0gBDRNaXlUtM5qA4t2MBroJKN7NaKCbgOLdjAa6CSjezWigm4Di3YwGuiMB/fDVb/1fEVBGj+COA/T25POZAQ0SWl5VLTM6CtBXn/1t7haUgC4k2kXHeiDj7dlP8QR0IdHHeg1KQBcSTUDxbkYD3QQU72Y00H20gIYILa+qlhlNQPFuRgPdx/okiYAuJJqA4t2MBroJKN7NaKD7eAENEFpeVS0zehxAP373mXx6PALK6Olb0FcnJ1/8LjMSUEbPcYr/+N3JyROJkYAyep5r0ArR4bA8eREIKKNHBPT65OTR9lQfPtHHAuontLyqWmb0SIB+enly8qx6cRtuQgkoo6e/ixec2oNFIKCMHg1QafPpKwIBZTQBHcHNaKB7DEC3t0d7PZIYowH1ElpeVS0zOgrQW1v3kaUFlYmAMhoLaDUY9HrQOE7+LJ6ALiE69hQ/HLHcALptPqsu+krjXoMS0AVEu+i4HMh8ny0ooyeJjmtBPzwejlaaAVAfoeVV1TKjY0/xH//YJ9QAdHeal/XWE1BGj9DN9Kp/n24A+urR5vrz34bXAaoiEFBGRwF6+8XvgRZ024B+evlo7I56ArqA6KgW9PrkxH8NWp/hnxBQRie7x3nU+enlk9stwq/GPsV7CC2vqpYZPdJwuw+PTx5JxoJ6i0BAGT3ptzrfnp+ff/OmenX/4vzpu2ARCCijJwX09cX+xcPPF5u33waLQEAZPeIpfvCo8+GXq/2r+7+82dz98CZUBMkuOwktr6qWGT3WTZLl9mh7Xj8/rxvRuz+/29z/WOH6ZaWbBK1TzFT+GnXAsqm776/2rej7pwdAK7EFZfT0LahrPGh9Hdq2oN4iEFBGj3UN6uyirwHlNSijpe6xTvGW8aDVif3h1wrLh5+fg+7i3YSWV1XLjJ64H/Trq7rphPWDEtDSo494+sWdCGjZ0WMBen1y8ux6/EedBLT06JEAffXF/+5G3AlEQBmNH243HC0/GG73bPzhdpUchJZXVcuMjltM1tbLSUAZPYI7BtBP/26b39s4xV9Xp/hqzLJABJTRekDPBmrfq3s5B42oeZN0W3WDivgkoIwGt6Af/vCTpRWdqZvJRWh5VbXM6JG+1akRAWX01IDWJ/jhVYCyCASU0dFfO/70H+5upk8v67v3j99N0VFPQMuOHuNrx4cnSJ9eTnEXT0CLjh7hSVI7GFT2rDMVUDuh5VXVMqNHALQdTj9JRz0BLTqagCZF482MNkVAk6LxZkabKgFQK6HlVdUyo0cBtFnlg4AyOtF99CPqKxHQcqMJaFo03MxoU0UAaiO0vKpaZjQBTYxGmxltioAmRqPNjDZFQBOj0WZGmyoDUAuh5VXVMqMJaGo02MxoUzGAXluHIxNQRo/gjm1Bbwcj6Qgoo0dwRwI6XMdrXkCHhJZXVcuMdtFxOpDxtmWRQwLK6BHccS2opQEloIwewx0H6PAKlIAyehR3HKCvLN+GmxfQAaHlVdUyo6MAtU7OREAZPYI7ClDbJSgBZfQY7kKeJBHQUqOLAbRPaHlVtcxoAgqIRpoZbYqAAqKRZkabIqCAaKSZ0abKAbRHaHlVtcxoAoqIBpoZbYqAIqKBZkabIqCIaKCZ0aYKAtQktLyqWmY0AYVE48yMNkVAIdE483FHrypBowkoJBpnPuLoA5sxjC4CUIPQpVIym9ugUo0oFtAPjy0zfxLQJUevVjf9X2CiYwCtplAeLuBBQBccvbKYVYRCAf3wT79bxixnAGiX0AVSMlt03VoOzRpC1YCuBmrfI6Ajmo8veo+GxawgFH+KHyw1Fw/oDUxr3KYooVZRb4kVe5P0z/ksx90RW9DJo5tW0maWN6HwbqaP/+JeTFYpIKAdQhdFyXzRLYJWs5hQ7Cl+e/05nPuGgC4wugOg3SwlFNuC3p6cDKcWIaDLi+7i5zALCV3GkyQCOm20AR8BFakhdDGUzBdtsucyywgloDodDyXzRffIc5pFhBJQnY6Gkvmi+9y5zRJCFwNoQ+gyKJkvekAdAZWJgE7iHkLnMQsIJaA6HQcl80VbkCOgMhHQCdw24nzmMKHLAfRAaPmUzBdt5Y2ACkVAR3erAQ0TSkB1OgJK5ou200ZApVqnmNOiAeb8ox2wEVCpCOiobhdrfnOIUAKqU+6UzBhNQBvFHu11ijktOt2ce7STtIA5QCgB1SlzSuaLdnNGQMUioKO5PZiFzH5CCahOWVMyYzQB7Sr6aK9TzGnRyeaso32QEVC5COg4bi9jSXQTUKUypmTGaAJqKv5orwumZL7oyJO0yE5AdcqXkvmiYzuKRBsgoDplS8mM0QS0r4SjvS6Vkvmiox9WirZAQHXKlZL5ouPHI4m2QUB1ypSSGaMJ6FApR3tdJCXzRSd8aUO0FQLq12UlUHSJgKZ8L1O0GQLqVMtmh9IsKZkxmoDalHS01+GP7JC0/ipLSuaLTpobRLQhAmrRAM72jRwpmTGagFo1LqBOPHdv+t4NqDhA0+anE21peYDe+AkNAHgT/ITfnKD8AE2c4VO0LQJqKAjfjehTPnO0CKihRQIaBm8fHYdoYYCmTuIt2tgCAXVfhQqoa6JjEC0L0OR1OkRbI6CNRMh1ovWEFgVo+kpHou0R0INkvHWj1Y0oAfWIgLZmG6FC2MxoJaIlAQpYzFC0QQK6k5S0frSK0IIARaxXLNoiAa0l5mwQrSGUgPqknLyxZEAHhMopG0YrTvPlAKrgk4AqZQFU0QraouObX5UyAlTDJwFVqjYbhCafpWMvYHUCAnpqSh1NQP1FwAIKuM+J6gLQCgOojcggpb1oFZ/ycutmuF8MoJCeItmF6NyAejn0vUlAdUUAtCUNocrOdme08jFUhFL3WnAqd33EjNbxSUCVMgHFPQzSPMiPUpJbcqW5+1wwWsknAVXKAFT9PN0TLR4KFakE9+mp3GxDdBpAdevUFQ7ojlDseI/g1nzmM0Nat1cVchrzENGuW8snAVVqPECDm3OYLUjaKI3c6x1uOnOf0I5bzWcJgN796fz8on719vz8/Js3oSJAOlzWMXwGogMbtJhdzaXlvai9PrSGSnOvEW3dej4LAPT+x6vN3fdX1cvXF5IigACNGRUfiA5+ocmUG07LJ2L2uuFMbTYQnQhQ1WLeEwL6/tvNHs2HX64kRcAAOsq3NrwbNc2ettP6Mf1edyCLOGQdQht3BJ8FAFqpakW3/31xvj/Zf1npZlRdzrrVszP5NjWfbbW9dU/T0L9K3GJImu1PC+jDz8+rf6oTfduKjtuCXoqmGNFHe9rQxixsPFtVBu1lpD1atYnDNg7umAa0iBb0/sXz9ofmOnRUQC+Fk+Doo92E7s1aOmNc/a6i2C4Awx3Fpyp6mJAFoHd/6t4bHTugbkJrcxyelVvu9PdkanTaccfxWQCgLZ/vn77bPPw6RTdTBdFYgDoJvUnAU+MOPQvSqO1FjeSzAECrzs/tvdHdD2+ql183N/IjArpDKIJQWbSDUEUb6IqWbMH2OD3+kDXPoZYLqLoI2QPqIDQFz/YKNvAxwXAPpU5rdyyfBFSpyrznZzxArYSeYQaL+BtR0YA5paqhJtF86qIHMYsGNIJQcfSAUH1HkTPag6hrUF1a9CkBVRUhFdAGnhEB7RN6pjKHol2ESsfEa6NP4/kkoErddNFRE6qINgg9U5pD0dZG1DMoOTF65UY/bNZ8mIBOB2gnZ48TEFAboj6GkgGNJ5SA6nTTbdlGBfRAaIMSFNDBeV7zvUylVsHtw6L7hC4PUPPaUEuoLrrOShsw54s2CPXzAwA0llACqtOUgFZhHYrQgHZO86HvxCVFr/buOEIJqEr9hWSUhGqj08fE+937zQfRSYleNe4oQgmoStMCemY02CMAuiNUP3mNRi2gUYQqo3uELg3Qy4FZR6gu+mxjXFKMAWiVIcAmIXrVdUcQSkAVsixmOCKgZ4fMGLM4WjQlQ3z0ynTrCSWgCtlW21QRqok+XH42hI4C6KloEEp09KrnJqCCIkQf7UubeSxAW2wOhI4B6KkZpTML1AdUTygBlcsKqIpQeXQXGsRa3nb36TBMbhZoNXRrCdVGm4QuCtBLu3kUQE1kLnVmcXQDS2ggc2T0yuZWEkpAxZoQ0D4vjmiNLO4uKn5CkYAqCSWgUjmbMQWhsmhLe2a/utBo6DZB8RIaF31gpe9WEUpApZoMUCsqtg4ElQbuPiY+QqOiG1QIqK4IcRXtuVOREyqJtoMCB3RIiedCNCa6JSX4t+ETAZXJ19cDBdRFyfAhlk69OxUrI05CwYBqCFVHG4QS0FpiQsPR7lasPwxAKVFfjys9IrrDSeD+zC8CKpL/cQ4OUN+FYNR8etZoNx6OfP0h62Li7eEKiYCKFHjeKCU0FO2/lU4iVPi80V6CESiREkpAJQqN2AABGuqMTCFUOqQIMsG94E6FgE4JqJRQf3T4cU4CoU10iAxbKca4lRYSSkAFEgzKlBHqjQ49Eb/ZpBB6iA5zYSnHKCM2ZITiL39rEVB1tGzERjSh+2gJFcOS6A6Z9HsXIkIJaFii712ICPVES8e8xRK6c8tarUFZVIdM/uX0ccZKE1CrEgGVjxqOJLR2S+9MkhZZkgM6zrdNFgeoQYTbLCHU6ZZMrXgwxxFaueXd473yaA6ZYg5EAmpVhoCKpv5szLEr4GgegZslUhwyzUoGI32h1P8Qa6eCADVx8JgFhDrcsqlpW3PcGmK6cZhGmeSHTLXc22acr+QTULuiARVOndwxx6zCqP2uRXdw03iABgkloAH1WPCZw4Ra3dKpvbtmNaHCBd8NRUwLpVu0vRZ+1h0C6lKQUJtbPPW8YVYSeho1AqEpmtRsn6iWgOqKoNrlPghwQOVLI5hmFaHKJd8bKWd+dEykHHDDJ9YjoE6FCB26FUt39MwKQk+t0RKpVqJ1TfQ9NaDesdJ7lQLogAIwoJqlZfpmMaHtalp6aSZ3jgQUP3cuAXUqQGjfrVr6aBAtJLS7HqFe8unxnSslEFBdEcYENEBoz61bmmsYLSLUXNFVL+kCI+6VPIJu9PT4ywF0SAASUOXScZZoAaH9NbH1OhOZPSvNhN0eQgmoT3pA/YQabu3ShrboIKFN1ccDupGsIeZbCYmA6oog32VL9YfNPkLhgIYIbWs+AVDBKozelboE0eAlmpxzRjQioMFo9dqw9mgvoZ16TwE0XNZUQMGL3C0EUFvdC8weQjtu/drFjmgPod1aTwL0JlBa/1KHomjoMqEE1CcRoBFra7uinYQadZ4GqL+8gaU4CaiuCNJdtla8xOwmtHHHrP3ujHYQalZ5IqC+EoeWipVFI1cCJ6B+OQk9uGP49ETbStofvpQKqLvMwaWMhdF2QgmoS/Z2CQJoFJ++6GFZB7WdDKir1OGltqXRVkLjyu2amrTRsgF1Erpzx/Hpje4XdljX6YDayy1YCp6A6oowAaAuQn0tUVDeaLO0lqoGAGoruYBPebSNUALqkOPOQ3q87IR6r+VC8kd3y4ur6J55MMethE9FNOwP6ygAvUnSZZp97XrjLG27brUFPh0r4qZf/BV686iiBwuWA6CuN0R/k67ORfEftLUJDfQn+hWKPhQZeDdsMXd3QNR+6qJBN3dH0YK63pgGUCuhoScyXgkBRfYn2sztLgj5JKDKIkh22fl0RnG8LISm8BmOrgsNfSJjNR92QsqnLrpf/shy25doakVANxZCw6OCfAqbLz3fLgZG7wgV86mMxjxgKBxQ9wCMFEAl4yo9Shq1Bo2uCJXzqY2GPKIloBKZhMpGprsVNp9uLiFNf9B8puGTgCqLIDlVOqU7Xl1Cpd/tiY+uazb97k5i1vCpjkaMwiKgMrWEyr8dGRu9r9fEJwwi8yq4PnJSNGAca9GA+gapxwKq+X55XHRTq0nPaEXRde3HTokiEAH1CwjogVDVDB1R0Z1KtV6IAqP3lR83qZRIgK+qrPzuYwbU+y0f9fHaETo6oOadRdSXqaTRzfVnzLR8QqV/2Y+ASlURqpyESx/d71+K+L60NLpzf6Sf2FSs5K9Llwuo/4u8EcdrrZ/GUBs97P9UT4kijTbu37VTQ8tFQJ2CAxozEawu2tY/378QBUX3+pd0k+trlDojSrGABmZC0B+vs7P2Xn4cQB3Pj8Rzl8ujV4P+T83yJDolzilFQIWqa/BA6CiAOp9vCpcnkUfbuuflCzxplTYr366w5QEamuxIe7z29beOcwuifZPPi1Ygk0fbHx+Fu+wJqK4IUwLaVN46xi2I9k9P3LkQTY92Pt6UrIIbo5SJdwmoSJ2qW+vdgujg2h3N/qRGDy8/W4XXEY9T/NTlm1IBDU5nqDpeRsWtte5wtGRtmcMeJUb7R4f4CY2Pjl38oRIBDapXbWswoMKljy7tbl10aPSS90I0ITpu+ZxaBDSkQZ2t10hAxStz7S5Ek6IFo+s8hKZEnxLQrsJTasuPl63GRGt2y6I1K8ddDtwqrVYSs5tQAqorwjSAWuvrJoXQbrRyZcPLFEpWQrOT0KTGO2IJx71WvujjBFSwJoH0YNtr6yalDe1Eq2vt8jKpJZKZXReiaRc20YQSUI/cVbWORrSNjqkz97eVvFr5z5Q9uf4sE6RdRrwVAXXLdbar3bGEHqJjFi6u3BGEHjo/Ey9s9MGGOZLQ8gCV1CDiaiyS0J05Ds/arW5Ew/PADmQ7zSf3XcTtMgF1yNMnuHfHEVqbo6/IarcOUcFyQxYNd5+A6orgKrSo8sIHW9JlHXUhehPffLbRckK7zzajH/BGuG3mqN0moFZ5n/q17ghCbxLwbKOljajRNx87RCbKbTPH7HlpgMoqLnSwxU+l9YSm4NmNliDaGxqiHmRoHAbE87NIQgmoqdDYyK5beZo/jX+mMogO7epg5JI+unsgIA94IwgtC1Dhmc97sJVDdxWInqaM6xlGextRy8C6iOjOscCMQNATSkB7Cn/7oe+WEpo2dNcW7UTUOu4zJro9m4CGyKgJLQpQ6d2t52DHfDtH1IieJn75we627rFjWHJc9AFR1BguLaEEtCvRbFoWdxDR5t4dDKitEXUNq4uNBs9IpSS0JEDF3YOuPU6YwsBPKGbFd8dem7vt/lZHdPQZdtJJHaEFASrvvnbscdIkMJ5GtNv1iQfUQNT3paOE6DPovNIqQgnoQeLJMl3Hy4Go2TM/BqANoj48E6OhM/MrCS0EUMUTasseK+ZydVeVBVHoesW+MVyXl348U6M1k90GozWElgKoZgTFcI81R99X0T1Eh881xwJ0tVqFHi6lRicgOohWEEpAta2Dv6LXDaOntsfu4wC6bzwvvYymR0cjOoyWE1oIoKohaKZZe9iDFV0j6hgUMgKgq+653YMoIjoSUUu0eNDM4gFVH3JBRVsbT6lZFz248nQ2o5josxhGrdFCQssAVDfMvGOOONzBiq7pdNzTQwFdrew3RnZEYdH6Y2aPlhFaBKDKr0E05qgzlr+i28ZzvbZACqPEBedOl5Z2FPi3oW1GHdEiQhcMKO6CqlH/1D6AFERJqEupUh9S7NWF6uC5okUXou4ZJ44GUO33yGoz8JZ0p1PHlaeBKIASf9tpqoso+vJX0Yy6owWEHj+g6q/i3sRd6luiD3LBuVOnHU2jZKWBc6e2HR2hA0F6FD3RYUKPHlD9V8WTnorYOvUE7cB6R2k0JTWbke7LmtJRumDPRH/qmquigZYG6PaIIqvK33b2tLbeOIXUtpspBb+03TjJ5YkOMxq6r/S+feyA6g56+tCx1n2qgrMxayjtndOTR2zEU+qPDiAaKrf3MB45oIrD3ZyO0gGNYdOIDlNqu97EDCmKojQU7T3Xh8vtOZrHDaj0QBvHL6meo9kcRq8bmR9y3gsBx7xpKZVEn7kolZidRzUPQO9fnD9913vlK8K+0MJD3DtsEfV82ghJSaOa0tVBWnd09GWjGLddNkqFZgeizuMxIaAPP19s3n5rvvIWYbfLgeN6dpDVLFAHywi3TYZ5Zar61dqUz50U3VcQVV30mXnoVQd88MscAL3/y5vN3Q9vjFfeItwEBpc5zzZ7s0OnppRuh1Yuha1rl7RlkJf70iK5e6AzVyvh1ODI5wDo3Z/fbe5/vDJefVnpxiFnpWco1z6kyEnuKLJBq9aZRt1mwnkQJgT0/dMDlu2rStHrxXs1Spc1oyePnrkF9RYhx+PF6ImjM78GjVd5VbXM6Env4p83d/HP5XfxkSqvqpYZPX0/aNV0qvpB41ReVS0z+hieJEWpvKpaZjQBZXTW0QSU0VlHE1BGZx1NQBmddTQBZXTW0QSU0VlHE1BGZx1NQBmddTQBZXTW0QSU0VlHE1BGZx1NQBmddTQBZXTW0QSU0VlHE1BGZx1NQBmddTQBZXTW0TkASlFuzQ+oU7iyMZrRBJTReUcTUEZnHY0HlKKAIqBU1iKgVNYioFTWIqBU1gIBOpjI3pjHaVS1SXd/Oj+/2Gzenp+ff/Mm4AJH7zNn2Osqudrt6fZ608xxOEVdYwAdTGRvzmc/pmKLgVkAAAMzSURBVNqkau7Su++vNq8vpsg1oveZc+x1pWpq4cn2ehu3/0uYpK4xgA4mETXnEh1TbdL76iC9vnj45SrkgUfvM+fY683uL3O6vd68/vrvu+RJ6hoD6GAaZnM25jFlJm1fbU849Zl+yuh95kx7XTVf0+31pjnFT1LXGEAHE9mb89mPKSOpmmO3OstP05600fvMefa6/ne6vd40gE5S10W1oPcvnu9/O8kVWW8nX1/Ms9fvmzuUqa5Dj68FzeIadHsX31TQJFXV28nXF/Ncg74+/FVODegRXYMOJrI357MfU23Sns+qQXn4dQpK2uh95hx7vT+xT7fXmwbQSeoa2g/amch+6h7BbXSnR/DraS7G2r3eZ86w14ez63R7vQN0qrrmkyQqaxFQKmsRUCprEVAqaxFQKmsRUCprEdCuPr08qfXs8IsPf/hp+7/Q5z/rfaJvOfy821r10z/+G1jqokVAu/r08sngd35A689ff/6b19L5effSt03KEAHtKhLQj989M35NQHEioF21gH54vD11P+mclOuXX/3nyee/Vef1fZPZAtq+9aj66F9PTr74vbOV3c+Hrf1t++snr7Yf3Fw/mmlPj0YEtKsG0LpN3J65e4A+flR9Zvuf6wq/5vOvth88vFX9/8PjL36v/m22sv+52Vq1wdst5J9ePnMXhqpEQLva3/Q82fxfxZ/B0w7QLU8VWIeT+v7z29+0b91WQD6rP99sZf+zscFqEx+++s1fIIqAdtW5Br2t7857gFb/Xp/sITY+X791W5/Wq0uBA8P7rex/Nonfnt55hg+KgHbVOcV/9pOlBa252p3dzc/bAW22YgX0w1f/wzN8UAS0qwa4GrVbawt62+n17ANavXVbX7nWv+lsZXiK35r/lWf4oAhoVy2gVdP3+ADox++ebN/67MDVFrs9pT1A+zdJzVb6N0m7S9jrE57hgyKgXbXAvdpeO/7X4aRcdxf92x/3D5WqO6N9K9oDdNPtZnrU3cpf978/NJ+v6h8f8wwfFAGdT7yHF4iAzqfr4WMrqi8COpeqC9O5y3AEIqBU1iKgVNYioFTWIqBU1iKgVNYioFTWIqBU1vp/DdrseVz8S6QAAAAASUVORK5CYII=" alt />
-<p class="caption">Figure 1: Densities for different ranks i in samples of size n = 10.</p>
+<p class="caption">Figure 1: Densities for different ranks i in samples
+of size n = 10.</p>
 </div>
 <div id="failure-probability-estimation" class="section level3">
 <h3>Failure Probability Estimation</h3>
-<p>In practice, a simplification for the calculation of the median value, also called median rank, is made. The formula of <em>Benard’s</em> approximation is given by</p>
-<p><span class="math display">\[\hat{F}(t_i) \approx \frac{i - 0,3}{n + 0,4} \]</span></p>
-<p>and is described in <em>The Plotting of Observations on Probability Paper</em> <a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>.</p>
-<p>However, this equation only provides valid estimates for failure probabilities if all units in the sample are defectives (<code>estimate_cdf(methods = &quot;mr&quot;, ...)</code>).</p>
-<p>In field data analysis, however, the sample mainly consists of intact units and only a small fraction of units failed. Units that have no damage at the point of analysis and also have not reached the operating time or mileage of units that have already failed, are potential candidates for future failures. As these, for example, still are likely to fail during a specific time span, like the guarantee period, the <em>CDF</em> must be adjusted upwards by these potential candidates.</p>
-<p>A commonly used method for correcting probabilities of (multiple) right-censored data is <em>Johnson’s</em> method (<code>estimate_cdf(methods = &quot;johnson&quot;, ...)</code>). By this method, all units that are included in the period looked at are sorted in an ascending order of their operating time (or any other damage-equivalent quantity). If there are units that have not failed before the <em>i</em>-th failure, an adjusted rank for the <em>i</em>-th failure is formed. This correction takes the potential candidates into account and increases the rank number. In consequence, a higher rank leads to a higher failure probability. This can be seen in <em>Figure 1</em>.</p>
+<p>In practice, a simplification for the calculation of the median
+value, also called median rank, is made. The formula of
+<em>Benard’s</em> approximation is given by</p>
+<p><span class="math display">\[\hat{F}(t_i) \approx \frac{i - 0,3}{n +
+0,4} \]</span></p>
+<p>and is described in <em>The Plotting of Observations on Probability
+Paper</em> <a href="#fn2" class="footnote-ref" id="fnref2"><sup>2</sup></a>.</p>
+<p>However, this equation only provides valid estimates for failure
+probabilities if all units in the sample are defectives
+(<code>estimate_cdf(methods = &quot;mr&quot;, ...)</code>).</p>
+<p>In field data analysis, however, the sample mainly consists of intact
+units and only a small fraction of units failed. Units that have no
+damage at the point of analysis and also have not reached the operating
+time or mileage of units that have already failed, are potential
+candidates for future failures. As these, for example, still are likely
+to fail during a specific time span, like the guarantee period, the
+<em>CDF</em> must be adjusted upwards by these potential candidates.</p>
+<p>A commonly used method for correcting probabilities of (multiple)
+right-censored data is <em>Johnson’s</em> method
+(<code>estimate_cdf(methods = &quot;johnson&quot;, ...)</code>). By this method,
+all units that are included in the period looked at are sorted in an
+ascending order of their operating time (or any other damage-equivalent
+quantity). If there are units that have not failed before the
+<em>i</em>-th failure, an adjusted rank for the <em>i</em>-th failure is
+formed. This correction takes the potential candidates into account and
+increases the rank number. In consequence, a higher rank leads to a
+higher failure probability. This can be seen in <em>Figure 1</em>.</p>
 <p>The rank adjustment is determined with:</p>
-<p><span class="math display">\[j_i = j_{i-1} + x_i \cdot I_i, \;\; with \;\; j_0 = 0\]</span></p>
-<p>Here, <span class="math inline">\(j_ {i-1}\)</span> is the adjusted rank of the previous failure, <span class="math inline">\(x_i\)</span> is the number of defectives at <span class="math inline">\(t_i\)</span> and <span class="math inline">\(I_i\)</span> is the increment that corrects the considered rank by the potential candidates.</p>
+<p><span class="math display">\[j_i = j_{i-1} + x_i \cdot I_i, \;\; with
+\;\; j_0 = 0\]</span></p>
+<p>Here, <span class="math inline">\(j_ {i-1}\)</span> is the adjusted
+rank of the previous failure, <span class="math inline">\(x_i\)</span>
+is the number of defectives at <span class="math inline">\(t_i\)</span>
+and <span class="math inline">\(I_i\)</span> is the increment that
+corrects the considered rank by the potential candidates.</p>
 <p><span class="math display">\[I_i=\frac{(n+1)-j_{i-1}}{1+(n-n_i)}\]</span></p>
-<p>The sample size is <span class="math inline">\(n\)</span> and <span class="math inline">\(n_i\)</span> is the number of units that have a lower <span class="math inline">\(t\)</span> than the <em>i</em>-th unit. Once the adjusted ranks are calculated, the <em>CDF</em> can be estimated according to <em>Benard’s</em> approximation.</p>
-<p>Other methods in <code>weibulltools</code> that can also handle (multiple) right-censored data are the <em>Kaplan-Meier</em> estimator (<code>estimate_cdf(methods = &quot;kaplan&quot;, ...)</code>) and the <em>Nelson-Aalen</em> estimator (<code>estimate_cdf(methods = &quot;nelson&quot;, ...)</code>).</p>
+<p>The sample size is <span class="math inline">\(n\)</span> and <span class="math inline">\(n_i\)</span> is the number of units that have a
+lower <span class="math inline">\(t\)</span> than the <em>i</em>-th
+unit. Once the adjusted ranks are calculated, the <em>CDF</em> can be
+estimated according to <em>Benard’s</em> approximation.</p>
+<p>Other methods in {weibulltools} that can also handle (multiple)
+right-censored data are the <em>Kaplan-Meier</em> estimator
+(<code>estimate_cdf(methods = &quot;kaplan&quot;, ...)</code>) and the
+<em>Nelson-Aalen</em> estimator
+(<code>estimate_cdf(methods = &quot;nelson&quot;, ...)</code>).</p>
 </div>
 <div id="probability-plotting" class="section level3">
 <h3>Probability Plotting</h3>
-<p>After computing failure probabilities a method called <em>probability plotting</em> is applicable. It is a graphical <em>goodness of fit</em> technique that is used in assessing whether an assumed distribution is appropriate to model the sample data.</p>
-<p>The axes of a probability plot are transformed in such a way that the <em>CDF</em> of a specified model is represented through a straight line. If the plotted points (<code>plot_prob()</code>) lie on an approximately straight line it can be said that the chosen distribution is adequate.</p>
-<p>The two-parameter Weibull distribution can be parameterized with parameters <span class="math inline">\(\mu\)</span> and <span class="math inline">\(\sigma\)</span> such that the <em>CDF</em> is characterized by the following equation:</p>
-<p><span class="math display">\[F(t)=\Phi_{SEV}\left(\frac{\log(t) - \mu}{\sigma}\right)\]</span></p>
-<p>The advantage of this representation is that the Weibull is part of the (log-)location-scale family. A linearized representation of this <em>CDF</em> is:</p>
-<p><span class="math display">\[\Phi^{-1}_{SEV}\left[F(t)\right]=\frac{1}{\sigma} \cdot \log(t) - \frac{\mu}{\sigma}\]</span></p>
+<p>After computing failure probabilities a method called <em>probability
+plotting</em> is applicable. It is a graphical <em>goodness of fit</em>
+technique that is used in assessing whether an assumed distribution is
+appropriate to model the sample data.</p>
+<p>The axes of a probability plot are transformed in such a way that the
+<em>CDF</em> of a specified model is represented through a straight
+line. If the plotted points (<code>plot_prob()</code>) lie on an
+approximately straight line it can be said that the chosen distribution
+is adequate.</p>
+<p>The two-parameter Weibull distribution can be parameterized with
+parameters <span class="math inline">\(\mu\)</span> and <span class="math inline">\(\sigma\)</span> such that the <em>CDF</em> is
+characterized by the following equation:</p>
+<p><span class="math display">\[F(t)=\Phi_{SEV}\left(\frac{\log(t) -
+\mu}{\sigma}\right)\]</span></p>
+<p>The advantage of this representation is that the Weibull is part of
+the (log-)location-scale family. A linearized representation of this
+<em>CDF</em> is:</p>
+<p><span class="math display">\[\Phi^{-1}_{SEV}\left[F(t)\right]=\frac{1}{\sigma}
+\cdot \log(t) - \frac{\mu}{\sigma}\]</span></p>
 <p>This leads to the following transformations regarding the axes:</p>
 <ul>
 <li>Abscissa: <span class="math inline">\(x = \log(t)\)</span></li>
-<li>Ordinate: <span class="math inline">\(y = \Phi^{-1}_{SEV}\left[F(t)\right]\)</span>, which is the quantile function of the SEV (<em>smallest extreme value</em>) distribution and can be written out with <span class="math inline">\(\log\left\{-\log\left[1-F(t)\right]\right\}\)</span>.</li>
+<li>Ordinate: <span class="math inline">\(y =
+\Phi^{-1}_{SEV}\left[F(t)\right]\)</span>, which is the quantile
+function of the SEV (<em>smallest extreme value</em>) distribution and
+can be written out with <span class="math inline">\(\log\left\{-\log\left[1-F(t)\right]\right\}\)</span>.</li>
 </ul>
-<p>Another version of the Weibull <em>CDF</em> with parameters <span class="math inline">\(\eta\)</span> and <span class="math inline">\(\beta\)</span> results in a <em>CDF</em> that is defined by the following equation:</p>
-<p><span class="math display">\[F(t)=1-\exp\left[ -\left(\frac{t}{\eta}\right)^{\beta}\right]\]</span></p>
+<p>Another version of the Weibull <em>CDF</em> with parameters <span class="math inline">\(\eta\)</span> and <span class="math inline">\(\beta\)</span> results in a <em>CDF</em> that is
+defined by the following equation:</p>
+<p><span class="math display">\[F(t)=1-\exp\left[
+-\left(\frac{t}{\eta}\right)^{\beta}\right]\]</span></p>
 <p>Then a linearized version of the CDF is:</p>
-<p><span class="math display">\[ \log\left\{-\log\left[1-F(t)\right]\right\} = \beta \cdot \log(t) - \beta \cdot \log(\eta)\]</span></p>
+<p><span class="math display">\[
+\log\left\{-\log\left[1-F(t)\right]\right\} = \beta \cdot \log(t) -
+\beta \cdot \log(\eta)\]</span></p>
 <p>Transformations regarding the axes are:</p>
 <ul>
 <li>Abscissa: <span class="math inline">\(x = \log(t)\)</span></li>
-<li>Ordinate: <span class="math inline">\(y = \log\left\{-\log\left[1-F(t)\right]\right\}\)</span>.</li>
+<li>Ordinate: <span class="math inline">\(y =
+\log\left\{-\log\left[1-F(t)\right]\right\}\)</span>.</li>
 </ul>
-<p>It can be easily seen that the parameters can be converted into each other. The corresponding equations are:</p>
+<p>It can be easily seen that the parameters can be converted into each
+other. The corresponding equations are:</p>
 <p><span class="math display">\[\beta = \frac{1}{\sigma}\]</span></p>
 <p>and</p>
-<p><span class="math display">\[\eta = \exp\left(\mu\right).\]</span></p>
+<p><span class="math display">\[\eta =
+\exp\left(\mu\right).\]</span></p>
 </div>
 </div>
 <div id="data-shock-absorber" class="section level2">
 <h2>Data: Shock Absorber</h2>
-<p>To apply the introduced methods of non-parametric failure probability estimation and probability plotting the <code>shock</code> data is used. In this dataset kilometer-dependent problems that have occurred on shock absorbers are reported. In addition to failed items the dataset also contains non-defectives (<em>censored</em>) observations. The data can be found in <em>Statistical Methods for Reliability Data</em> <a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a>.</p>
-<p>For consistent handling of the data, <code>weibulltools</code> introduces the function <code>reliability_data()</code> that converts the original dataset into a <code>wt_reliability_data</code> object. This formatted object allows to easily apply the presented methods.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a>shock_tbl &lt;-<span class="st"> </span><span class="kw">reliability_data</span>(<span class="dt">data =</span> shock, <span class="dt">x =</span> distance, <span class="dt">status =</span> status)</span>
-<span id="cb2-2"><a href="#cb2-2"></a>shock_tbl</span>
-<span id="cb2-3"><a href="#cb2-3"></a><span class="co">#&gt; Reliability Data:</span></span>
-<span id="cb2-4"><a href="#cb2-4"></a><span class="co">#&gt; # A tibble: 38 x 3</span></span>
-<span id="cb2-5"><a href="#cb2-5"></a><span class="co">#&gt;        x status id   </span></span>
-<span id="cb2-6"><a href="#cb2-6"></a><span class="co">#&gt;    &lt;int&gt;  &lt;dbl&gt; &lt;chr&gt;</span></span>
-<span id="cb2-7"><a href="#cb2-7"></a><span class="co">#&gt;  1  6700      1 ID1  </span></span>
-<span id="cb2-8"><a href="#cb2-8"></a><span class="co">#&gt;  2  6950      0 ID2  </span></span>
-<span id="cb2-9"><a href="#cb2-9"></a><span class="co">#&gt;  3  7820      0 ID3  </span></span>
-<span id="cb2-10"><a href="#cb2-10"></a><span class="co">#&gt;  4  8790      0 ID4  </span></span>
-<span id="cb2-11"><a href="#cb2-11"></a><span class="co">#&gt;  5  9120      1 ID5  </span></span>
-<span id="cb2-12"><a href="#cb2-12"></a><span class="co">#&gt;  6  9660      0 ID6  </span></span>
-<span id="cb2-13"><a href="#cb2-13"></a><span class="co">#&gt;  7  9820      0 ID7  </span></span>
-<span id="cb2-14"><a href="#cb2-14"></a><span class="co">#&gt;  8 11310      0 ID8  </span></span>
-<span id="cb2-15"><a href="#cb2-15"></a><span class="co">#&gt;  9 11690      0 ID9  </span></span>
-<span id="cb2-16"><a href="#cb2-16"></a><span class="co">#&gt; 10 11850      0 ID10 </span></span>
-<span id="cb2-17"><a href="#cb2-17"></a><span class="co">#&gt; # ... with 28 more rows</span></span></code></pre></div>
+<p>To apply the introduced methods of non-parametric failure probability
+estimation and probability plotting the <code>shock</code> data is used.
+In this dataset kilometer-dependent problems that have occurred on shock
+absorbers are reported. In addition to failed items the dataset also
+contains non-defectives (<em>censored</em>) observations. The data can
+be found in <em>Statistical Methods for Reliability Data</em> <a href="#fn3" class="footnote-ref" id="fnref3"><sup>3</sup></a>.</p>
+<p>For consistent handling of the data, {weibulltools} introduces the
+function <code>reliability_data()</code> that converts the original
+dataset into a <code>wt_reliability_data</code> object. This formatted
+object allows to easily apply the presented methods.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>shock_tbl <span class="ot">&lt;-</span> <span class="fu">reliability_data</span>(<span class="at">data =</span> shock, <span class="at">x =</span> distance, <span class="at">status =</span> status)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>shock_tbl</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Reliability Data with characteristic x: &#39;distance&#39;:</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 38 × 3</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;        x status id   </span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    &lt;int&gt;  &lt;dbl&gt; &lt;chr&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  1  6700      1 ID1  </span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  2  6950      0 ID2  </span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  3  7820      0 ID3  </span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  4  8790      0 ID4  </span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  5  9120      1 ID5  </span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  6  9660      0 ID6  </span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  7  9820      0 ID7  </span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  8 11310      0 ID8  </span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  9 11690      0 ID9  </span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 11850      0 ID10 </span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # ℹ 28 more rows</span></span></code></pre></div>
 </div>
-<div id="estimation-of-failure-probabilities-with-package-weibulltools" class="section level2">
-<h2>Estimation of Failure Probabilities with Package <code>weibulltools</code></h2>
-<p>First, we are interested in how censored observations influence the estimation of failure probabilities in comparison to the case where only failed units are considered. To deal with survived and failed units we will use <code>estimate_cdf()</code> with <code>methods = &quot;johnson&quot;</code>, whereas <code>methods = &quot;mr&quot;</code> only considers failures.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a><span class="co"># Estimate CDF with both methods: </span></span>
-<span id="cb3-2"><a href="#cb3-2"></a>cdf_tbl &lt;-<span class="st"> </span><span class="kw">estimate_cdf</span>(shock_tbl, <span class="dt">methods =</span> <span class="kw">c</span>(<span class="st">&quot;mr&quot;</span>, <span class="st">&quot;johnson&quot;</span>))</span>
-<span id="cb3-3"><a href="#cb3-3"></a><span class="co">#&gt; The &#39;mr&#39; method only considers failed units (status == 1) and does not retain intact units (status == 0).</span></span>
-<span id="cb3-4"><a href="#cb3-4"></a></span>
-<span id="cb3-5"><a href="#cb3-5"></a><span class="co"># First case where only failed units are taken into account:</span></span>
-<span id="cb3-6"><a href="#cb3-6"></a>cdf_tbl_mr &lt;-<span class="st"> </span>cdf_tbl <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">filter</span>(cdf_estimation_method <span class="op">==</span><span class="st"> &quot;mr&quot;</span>)</span>
-<span id="cb3-7"><a href="#cb3-7"></a>cdf_tbl_mr</span>
-<span id="cb3-8"><a href="#cb3-8"></a><span class="co">#&gt; CDF estimation for method &#39;mr&#39;:</span></span>
-<span id="cb3-9"><a href="#cb3-9"></a><span class="co">#&gt; # A tibble: 11 x 6</span></span>
-<span id="cb3-10"><a href="#cb3-10"></a><span class="co">#&gt;    id        x status  rank   prob cdf_estimation_method</span></span>
-<span id="cb3-11"><a href="#cb3-11"></a><span class="co">#&gt;    &lt;chr&gt; &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;                </span></span>
-<span id="cb3-12"><a href="#cb3-12"></a><span class="co">#&gt;  1 ID1    6700      1     1 0.0614 mr                   </span></span>
-<span id="cb3-13"><a href="#cb3-13"></a><span class="co">#&gt;  2 ID5    9120      1     2 0.149  mr                   </span></span>
-<span id="cb3-14"><a href="#cb3-14"></a><span class="co">#&gt;  3 ID13  12200      1     3 0.237  mr                   </span></span>
-<span id="cb3-15"><a href="#cb3-15"></a><span class="co">#&gt;  4 ID15  13150      1     4 0.325  mr                   </span></span>
-<span id="cb3-16"><a href="#cb3-16"></a><span class="co">#&gt;  5 ID19  14300      1     5 0.412  mr                   </span></span>
-<span id="cb3-17"><a href="#cb3-17"></a><span class="co">#&gt;  6 ID20  17520      1     6 0.5    mr                   </span></span>
-<span id="cb3-18"><a href="#cb3-18"></a><span class="co">#&gt;  7 ID27  20100      1     7 0.588  mr                   </span></span>
-<span id="cb3-19"><a href="#cb3-19"></a><span class="co">#&gt;  8 ID31  20900      1     8 0.675  mr                   </span></span>
-<span id="cb3-20"><a href="#cb3-20"></a><span class="co">#&gt;  9 ID32  22700      1     9 0.763  mr                   </span></span>
-<span id="cb3-21"><a href="#cb3-21"></a><span class="co">#&gt; 10 ID34  26510      1    10 0.851  mr                   </span></span>
-<span id="cb3-22"><a href="#cb3-22"></a><span class="co">#&gt; 11 ID36  27490      1    11 0.939  mr</span></span>
-<span id="cb3-23"><a href="#cb3-23"></a></span>
-<span id="cb3-24"><a href="#cb3-24"></a><span class="co"># Second case where both, survived and failed units are considered:</span></span>
-<span id="cb3-25"><a href="#cb3-25"></a>cdf_tbl_john &lt;-<span class="st"> </span>cdf_tbl <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">filter</span>(cdf_estimation_method <span class="op">==</span><span class="st"> &quot;johnson&quot;</span>) </span>
-<span id="cb3-26"><a href="#cb3-26"></a>cdf_tbl_john</span>
-<span id="cb3-27"><a href="#cb3-27"></a><span class="co">#&gt; CDF estimation for method &#39;johnson&#39;:</span></span>
-<span id="cb3-28"><a href="#cb3-28"></a><span class="co">#&gt; # A tibble: 38 x 6</span></span>
-<span id="cb3-29"><a href="#cb3-29"></a><span class="co">#&gt;    id        x status  rank    prob cdf_estimation_method</span></span>
-<span id="cb3-30"><a href="#cb3-30"></a><span class="co">#&gt;    &lt;chr&gt; &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;                </span></span>
-<span id="cb3-31"><a href="#cb3-31"></a><span class="co">#&gt;  1 ID1    6700      1  1     0.0182 johnson              </span></span>
-<span id="cb3-32"><a href="#cb3-32"></a><span class="co">#&gt;  2 ID2    6950      0 NA    NA      johnson              </span></span>
-<span id="cb3-33"><a href="#cb3-33"></a><span class="co">#&gt;  3 ID3    7820      0 NA    NA      johnson              </span></span>
-<span id="cb3-34"><a href="#cb3-34"></a><span class="co">#&gt;  4 ID4    8790      0 NA    NA      johnson              </span></span>
-<span id="cb3-35"><a href="#cb3-35"></a><span class="co">#&gt;  5 ID5    9120      1  2.09  0.0465 johnson              </span></span>
-<span id="cb3-36"><a href="#cb3-36"></a><span class="co">#&gt;  6 ID6    9660      0 NA    NA      johnson              </span></span>
-<span id="cb3-37"><a href="#cb3-37"></a><span class="co">#&gt;  7 ID7    9820      0 NA    NA      johnson              </span></span>
-<span id="cb3-38"><a href="#cb3-38"></a><span class="co">#&gt;  8 ID8   11310      0 NA    NA      johnson              </span></span>
-<span id="cb3-39"><a href="#cb3-39"></a><span class="co">#&gt;  9 ID9   11690      0 NA    NA      johnson              </span></span>
-<span id="cb3-40"><a href="#cb3-40"></a><span class="co">#&gt; 10 ID10  11850      0 NA    NA      johnson              </span></span>
-<span id="cb3-41"><a href="#cb3-41"></a><span class="co">#&gt; # ... with 28 more rows</span></span></code></pre></div>
+<div id="estimation-of-failure-probabilities-with-weibulltools" class="section level2">
+<h2>Estimation of Failure Probabilities with {weibulltools}</h2>
+<p>First, we are interested in how censored observations influence the
+estimation of failure probabilities in comparison to the case where only
+failed units are considered. To deal with survived and failed units we
+will use <code>estimate_cdf()</code> with
+<code>methods = &quot;johnson&quot;</code>, whereas <code>methods = &quot;mr&quot;</code>
+only considers failures.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Estimate CDF with both methods: </span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>cdf_tbl <span class="ot">&lt;-</span> <span class="fu">estimate_cdf</span>(shock_tbl, <span class="at">methods =</span> <span class="fu">c</span>(<span class="st">&quot;mr&quot;</span>, <span class="st">&quot;johnson&quot;</span>))</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The &#39;mr&#39; method only considers failed units (status == 1) and does not retain intact units (status == 0).</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># First case where only failed units are taken into account:</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>cdf_tbl_mr <span class="ot">&lt;-</span> cdf_tbl <span class="sc">%&gt;%</span> <span class="fu">filter</span>(cdf_estimation_method <span class="sc">==</span> <span class="st">&quot;mr&quot;</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>cdf_tbl_mr</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; CDF estimation for method &#39;mr&#39;:</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 11 × 6</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    id        x status  rank   prob cdf_estimation_method</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    &lt;chr&gt; &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;                </span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  1 ID1    6700      1     1 0.0614 mr                   </span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  2 ID5    9120      1     2 0.149  mr                   </span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  3 ID13  12200      1     3 0.237  mr                   </span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  4 ID15  13150      1     4 0.325  mr                   </span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  5 ID19  14300      1     5 0.412  mr                   </span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  6 ID20  17520      1     6 0.5    mr                   </span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  7 ID27  20100      1     7 0.588  mr                   </span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  8 ID31  20900      1     8 0.675  mr                   </span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  9 ID32  22700      1     9 0.763  mr                   </span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 ID34  26510      1    10 0.851  mr                   </span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 11 ID36  27490      1    11 0.939  mr</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Second case where both, survived and failed units are considered:</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>cdf_tbl_john <span class="ot">&lt;-</span> cdf_tbl <span class="sc">%&gt;%</span> <span class="fu">filter</span>(cdf_estimation_method <span class="sc">==</span> <span class="st">&quot;johnson&quot;</span>) </span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>cdf_tbl_john</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; CDF estimation for method &#39;johnson&#39;:</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # A tibble: 38 × 6</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    id        x status  rank    prob cdf_estimation_method</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    &lt;chr&gt; &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;                </span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  1 ID1    6700      1  1     0.0182 johnson              </span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  2 ID2    6950      0 NA    NA      johnson              </span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  3 ID3    7820      0 NA    NA      johnson              </span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  4 ID4    8790      0 NA    NA      johnson              </span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  5 ID5    9120      1  2.09  0.0465 johnson              </span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  6 ID6    9660      0 NA    NA      johnson              </span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  7 ID7    9820      0 NA    NA      johnson              </span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  8 ID8   11310      0 NA    NA      johnson              </span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  9 ID9   11690      0 NA    NA      johnson              </span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 ID10  11850      0 NA    NA      johnson              </span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; # ℹ 28 more rows</span></span></code></pre></div>
 <p><br></p>
-<p>If we compare both outputs we can see that survivors reduce the probabilities. But this is just that what was expected since undamaged units with longer or equal lifetime characteristic <em>x</em> let us gain confidence in the product.</p>
+<p>If we compare both outputs we can see that survivors reduce the
+probabilities. But this is just that what was expected since undamaged
+units with longer or equal lifetime characteristic <em>x</em> let us
+gain confidence in the product.</p>
 </div>
-<div id="probability-plotting-with-package-weibulltools" class="section level2">
-<h2>Probability Plotting with Package <code>weibulltools</code></h2>
-<p>The estimated probabilities should now be presented in a probability plot. With <code>plot_prob()</code> probability plots for several lifetime distributions can be constructed and estimates of multiple methods can be displayed at once.</p>
+<div id="probability-plotting-with-weibulltools" class="section level2">
+<h2>Probability Plotting with {weibulltools}</h2>
+<p>The estimated probabilities should now be presented in a probability
+plot. With <code>plot_prob()</code> probability plots for several
+lifetime distributions can be constructed and estimates of multiple
+methods can be displayed at once.</p>
 <div id="weibull-probability-plot" class="section level3">
 <h3>Weibull Probability Plot</h3>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a><span class="co"># Weibull grid for estimated probabilities: </span></span>
-<span id="cb4-2"><a href="#cb4-2"></a>weibull_grid &lt;-<span class="st"> </span><span class="kw">plot_prob</span>(</span>
-<span id="cb4-3"><a href="#cb4-3"></a>  cdf_tbl,</span>
-<span id="cb4-4"><a href="#cb4-4"></a>  <span class="dt">distribution =</span> <span class="st">&quot;weibull&quot;</span>, </span>
-<span id="cb4-5"><a href="#cb4-5"></a>  <span class="dt">title_main =</span> <span class="st">&quot;Weibull Probability Plot&quot;</span>, </span>
-<span id="cb4-6"><a href="#cb4-6"></a>  <span class="dt">title_x =</span> <span class="st">&quot;Mileage in km&quot;</span>, </span>
-<span id="cb4-7"><a href="#cb4-7"></a>  <span class="dt">title_y =</span> <span class="st">&quot;Probability of Failure in %&quot;</span>,</span>
-<span id="cb4-8"><a href="#cb4-8"></a>  <span class="dt">title_trace =</span> <span class="st">&quot;Method&quot;</span>,</span>
-<span id="cb4-9"><a href="#cb4-9"></a>  <span class="dt">plot_method =</span> <span class="st">&quot;ggplot2&quot;</span></span>
-<span id="cb4-10"><a href="#cb4-10"></a>)</span>
-<span id="cb4-11"><a href="#cb4-11"></a></span>
-<span id="cb4-12"><a href="#cb4-12"></a>weibull_grid</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Weibull grid for estimated probabilities: </span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>weibull_grid <span class="ot">&lt;-</span> <span class="fu">plot_prob</span>(</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  cdf_tbl,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">distribution =</span> <span class="st">&quot;weibull&quot;</span>, </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_main =</span> <span class="st">&quot;Weibull Probability Plot&quot;</span>, </span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_x =</span> <span class="st">&quot;Mileage in km&quot;</span>, </span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_y =</span> <span class="st">&quot;Probability of Failure in %&quot;</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_trace =</span> <span class="st">&quot;Method&quot;</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot_method =</span> <span class="st">&quot;ggplot2&quot;</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>weibull_grid</span></code></pre></div>
 <div class="figure">
-<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAqAAAAJACAMAAABlpiR1AAABBVBMVEUAAAAAADoAAGYAOjoAOmYAOpAAZrYAv8QzMzM6AAA6ADo6AGY6Ojo6OmY6OpA6ZmY6kNtNTU1NTW5NTY5Nbm5NbqtNjshmAABmADpmAGZmOgBmOpBmZgBmZmZmtrZmtttmtv9uTU1uTW5uTY5ubqtuq8huq+SOTU2OTW6OTY6ObquOyP+QOgCQOjqQOmaQZgCQkGaQtpCQ27aQ2/+rbk2rbm6rbo6rjk2ryKur5P+2ZgC2Zjq22/+2/7a2/9u2///Ijk3I///bkDrbtmbb25Db/7bb/9vb///kq27k///r6+v4dm3/tmb/yI7/25D/27b/29v/5Kv//7b//8j//9v//+T////W5iULAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAcDElEQVR4nO2dC3/b9nWGKW+SK2drJXuOmmZp5SSLk0npnMrpJnabLHapfKG56Ybv/1GGP8AbYBKijsTzHAHv81vMiXpJ6+15jJsIoJcJEZge/QMI0YQEFaGRoCI0ElSERoKK0EhQERoJKkIjQUVo2ihof+OoeOhtpYeLva3Zt64ON88qT8w9n/4rvxr0Csq3qbLoxbPnJm9TvNXos5N6cu6NZ39bwYKwSLRR0GFvP0sG9B6dTL8acytBe/OvHHMLQQePlgma3rgm6IKwSLRR0NH2TvHnV4Vgg/qCcAVBS1uGvYpDS19cfW76NosEnb2xBF2NNgpazn7w6L/2diZfXOz1iuXpeAk6nH2V/txaLGjWf3SSf3OQVsmTN5i9OHmWszP/3NwS9G+H6Zvlv470N3z6xnM/19Vh+U7iE9ooaJp//sdW1s8duEiWDiebfqWgf7c9++pGQfPw5tn0DWYvnqyv97PqG1YELRfm062MuqCTt5WgS2mloMPCpJ1i7T7aTtt7yZDR9tZY0OTCoLd1k6DDItIrFsPpDQa96otTKr1p9Q0r26Dle/Yn6+/KG6fY5G21il9GKwVNcg7HcqbJl8ux9P+WghYiTlezCwTt9WaL3ImGWXF4YPbi8i/q9ZKg829Y3UkaFP9WJtuolTfePJu9rQRdRisFTcoNckXSY3+6Ji3XpUnQUtfyqwZBZ5upyfSsWDLPXpw/WaS2suobVgUt/q1MjwbU3nj2thJ0Ga0UNB/3fxf7Jf3NX2aboLcQdGbLckHT0nO/WDo2CZr+gUzX8PU3lqA3005Bhxs/FbPPH58cTf3K5o+DFuvu/njH/GZBZ6v4yYvLNy23QSfPLRB0uPGnvenuzyeCahV/E+0U9GLvq2LgF3v/UK5Oy9/dTLZBJ/s0Wb84Yt67UdBFO0mFXfmX9b2umaDFIaaLvd88mR6Irb3x/E7Sol9bibYKmk++kK2QL5uu43fGS9DfbI83BIvn//53NwqazR1mmry4ODSUM/+GVUHLI0f9ucP99Teevu0kLOq0U9B83jvjx3LlXuzQ7E9W8TvTY+25F5t/u3kbtHyD8U7P5MVpI3TjKN9KmD1XEbRYuk5+r7XkjSdvOwmLOi0VNBBaed8JCbpmxgdJhREJulbKY1HCjgRdK+VvSoUdCSpCI0FFaCSoCI0EFaGRoCI0ElSE5paC/kp0nfV4uJTbCrpS6v0t3nHF7Aqx2/ytDxa8pAQ1x/DZeYCXlKDmGD47D/CSEtQcw2fnAV5Sgppj+Ow8wEtKUHMMn50HeEkJao7hs/MALylBzTF8dh7gJSWoOYbPzgO8pAQ1x/DZeYCXlKDmGD47D/CSEtQcw2fnAV4ykKDnL3afnWbZ293d4rFAgsLgJeMIevnyIHv7/F325mDuSQkKg5eMI+j5t++yy++Pr38+nntSgsLgJcMJevkyX8UXC9Hi04DvRbeJI2ixin96fP71cTZbimoJCoOXjCNo2kn6l7GZ0+1QCQqDlwwkaM7lD+XuuwSNAl4yjqD59mf29vPsY74jf/1nHWYKglfJx48fL/5GHEGzj7u7uZzpOOjT6Y68BIVxKvn48TJDAwm6CAkKI0GbkaAwErQZCQqjbdBmJCgMXlKCmmP47DzAS0pQcwyfnQd4SQlqjuGz8wAvKUHNMXx2HuAlJag5hs/OA7ykBDXH8Nl5gJeUoOYYPjsP8JIS1BzDZ+cBXlKCmmP47DzASwYSdHxW5+XL4kNNJRIUBi8ZR9DxWZ3Xrw/Sx0LHSFAYvGQcQScnzf1wmp1/ow8sBwEvGU7Q8UOmszpFIo6g47M60ykfpaAJLUFh8JJxBB2f1TlbgiYkKAxeMpCgWXFWp7ZBQ4GXjCPo+KzO69ffaS8+DnjJOIJOzurUcdBI4CUDCboICQqDl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/WWXLpBcPmkaDmmAS9G8svuTiPBDXHJOjdkKB3yUrQEgnajASF0TZoMxIUBi8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3jJQILq8osBwUvGEbS4cIMuvxgMvGQcQYuLMunSN8HAS8YRdLwE1eUXxTxxBB1vfOryi6HAS8YR9Pzr4+zjs1NdfjEUeMk4go4XndoGDQVeMo6g4yWoLr8YCrxkHEHT5RefHus4aCzwkoEEXYQEhcFLSlBzDJ+dB3hJCWqO4bPzYOWSK51gZECCmmMSdI7VTtE0IEHNMQk6hwRtQoKuDQnajASF0TZoMxIUBi8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8ZR9C3u4kDfWA5FHjJOIImPurCDcHAS4YSNJ3NqZPmQoGXDCVoWnLqwg1inkiCFl7qwg2hwEtGEjS5menCDaHAS0YS9M13+R/aBg0FXjKQoNc/p+WmLtwQimrJdX0quYFAgo5X7DoOGolKybWd19FAIEEXIUFhJGgzEhRGgjYjQWG0DdqMBIXBS0pQcwyfnQd4SQlqjuGz88Cr5IcPHxZ/Q4KaYxL0/vjwYZmhEtQck6D3hwS9bVaClkjQZiQojLZBm5GgMHhJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAlwwk6PVr3cgrHHjJQIK+OdB58eHAS8YRNJ2MlOmcpGDgJeMIev7tv6dVvM6LF/MEEvTFQbJT58WH4j3wGeUKgQQtF506Lz4UxFkeFeIIevmvhZnaBg2FBJ3xpljF67z4UEjQGZcvd5+d6jhoLLQN2owEhcFLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB+ssufRc+HkkqDkmQe/G8quJzCNBzTEJejck6F2yErREgjYjQWG0DdqMBIXBSwYSNN0w/tmpPg8aCrxkIEHfHKQ/dV78urnVR5DxknEELe+EqPPi183tTuLAS8YRNF+17+4e6Lz4dVMISv8QqxNH0POvj9NSVOfFrxktQRu5YS/+zYHOi1832gZt4kZBtQ0aCrxkHEHTuv36z6c6Lz4UeMk4gqbjoLo+aDTwkoEEXYQEhcFLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLwoJe7PV6G0fL4xIUBi8JC9rfz7LRZydL4xIUZuWSK50BZwAT9OKLXMurQwkam1VLrnYOsQFuCXqxt3mmVXx0Oixovujc3ropLkFhOi1olg17O81xCQrT3W3QMYPeflNcgtbwvm0R/q+QE3S03es9yneP+toGXR33G791V9CL3+ZeDtNG6NUftRe/KhJ03SwQtAkJWkWCrptPV/GNSNAa2gZdM/pd/MMCLylBzTF8dh7gJSWoOYbPzgO8pAQ1x/DZeYCXlKDmGD47D/CSEtQcw2fnAV4SFTQdaeo1HmySoDB4SVLQq0N9mik6eElS0Iu9xg+KJCQoDF6SXYJK0OjgJdFt0KF+1RkdvCS7iu9pJyk4eEkdZjLH8Nl5gJeUoOYYPjsPqiXXdV5HA9znQff2tYqPT6Xk2s6Ma0BLUHNMgnogQc0xCeqBBDXHuidop7ZBV0OCwuAlJag5hs/OA7ykBDXH8Nl5gJdkBR30evuDzbPl8U4K6n3mZhPdFrS/+cvefuOH7rooqPu57010WtDiWP1+40dGJCiMBJWgdSToPOgqfpBW8Rd7DZdg7KKg2gadh74+aE7TJUI7KWgk8JI6zGSO4bPzAC8Z6JSPj7u7z06z7PLl7vN3k+ckKAxeMs5Jc+ffnGZvP8+uXx+khzESFAYvCe8k1Y7R55Je/nBauFoiQWHwkrHOScoXneffvssuvz9OP1riveg2kXaSzl88Pc4+Pp8ImtASFAYvGUnQLJk5W4ImJCgMXjLWKj57c6Bt0FDgJfklaHE3hZzxuv369Xfai48DXpIXNBuO9+Xf7u7m26A6DhoKvGQEQfVhkbjgJQMI2m/4xLIEhcFLBthJ0q0QA4OXXGzAaLtY7Ra3dJ/wv/+ZjZ4scOnmS9TNow+LPCzwkssELRZro+2ZoElOCWr9Wx8s74FT4SssE/Sr9CnNwVfrE3RyEFTXZgoNcTGRCssE/f2XZ9nVj69yQa8Ok0Lpfgc7oyevcp/2s+K5dKpbbtnGKy1BW0xYQf/wx5Ns9Ou/bp4VJ10ONs+KJWha5Q8enaTn0n/pbI2LPQnaYsIKuj/Yz4Y7w82zYg1+sbdfCrpfrOuL5/I/iseBdRWvyy8+AMJug+4Pt7L+fi7ooJRoZ7oNmgRNm6b5Y/F5ztFnWoK2F7zkUkEvvvzli5Mk6Hg/SYLe5W99sOAllwqa/eXVVvo1+XB8HL0iaHpusoq/w2Em3WkuPHjJ5YIOejtJ0KvDfDGZG5lOIJoIOttJ2rrLTtLV4c7V4X7j7bwkKAxecrmgycbh+DBTWmL2e1sTQe/pMFNSs78z/TTT6j9eHQm6NvCS9Fmdgy19mikyeEn26naFnU3XX5SgMHhJVNB8IzTfcujsp5kiXYNpGd0W9GbaLGioq9gtQ4I2I0FhuivoCjeLzyQoTscFvfEgf5sF1TboKkhQcwyfnQd4SQlqjuGz8wAvKUHNMXx2HuAlJag5hs/OA7wkKKjOSXoA4CV1HNQcw2fnAV5Sgppj+Ow8wEtKUHMMn50HeEkJao7hs/MALylBzTF8dh7gJS2CXv04+YDc7U6YS1RPO678Ov78xe7uga4PunZudSIxXvImA5rb3Keg6cL0518f6z5Ja+Z2l2LAS95gwMI2aQl6sZcOX44+++d0KZzRr/+tuCLOsDymOf7e+Mkqs1X8oHYc9OPnma5R70BHBC1Pdhttzz9cfHGSzjGqfq/22uV3mktU7vKh+ySthWKk9A+xOkZBk4sXvz1Kq/j8v/HD+HYI1e81CPoJ6QYKuk/Sumn/NmguaDJv/DATNF2IYeMoq36v9tqqoIPK7bgvX36XZbpPUijwksa9+IVL0PS98Zp+tSXooNxiHRt6/iLfh8+0DRoKvKT1MNN4O7MiaNriTP9Vvld77YJt0PFHmko/M90nKRR4Saugk734yhK0X9mLv6Wgb3cTBzoOGgq8pEXQyb3hLDSs4hchQWHwkgZBB72GS4HcRNNO0gIkKAxeUr+LN8fw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC/JXmG56dKgBRIUBi/JLkH7vRuOqUpQGLwkvYpP12/Qb5LigpekBS0VXXptEQkKg5ekBR0U97PpL1vRS1AYvCR8E4XxWUtLLyImQWt439u104KucJM6CVrF/e7Y4QW978tUL/886EIkaBUJWmPhhf6vfnyV73oP0+736B9/d6s7IUrQuyFBaywW9HArG21vFZ+l317lXh1zLDovfsv8443pjqDaBq2xZAl6VJ72UZ4Zdyuaz4u/7Y83pkOCeoOXtGyD3pegKyBBYfCS1pPm7ixocW2m0JcAv2n/EJ+dB3hJTNDVAAW98UZw+Ow8wEtK0GUxCZrAS+ouH8tiEjSBl6R/F38D2gaFwUtKUHMMn50HeEnyTnPB9+Lv8299sOAltQQ1x/DZeYCXlKDmGD47D/CSrKDDtIZv+n2nBIXBS6KC6up24cFLsh9Y1sftooOXlKDmGD47D/CS6Cp+WK7iGzZCJSgMXlK/6jTH8Nl5gJfUYSZzDJ+dB3hJCWqO4bPzAC+JCjra1io+OHhJUtCrw52rw/pNuatIUBi8JH2Yqb/ojrMzJCgMXpIWdLCl46CRwUui26D9ws6BlqBVvM99b6LbguYboVm/13SZ5S4K6n71kCa6LejNSFAYCdqMBIXpuKD6POgiAvnZcUH1edDw4CXpw0yZPm4XGrykBDXH8Nl5gJfU50HNMXx2HuAl9XlQcwyfnQd4SR1mMsfw2XmAl5Sg5hg+Ow/wkqygxXXqG44ySVAavKSOg5pj+Ow8wEvqMJM5hs/OA7xkKEHPvznNssuXu8/fTSISFAYvGWkV/3H32Wl2/foge/v5JCFBYfCSgXaS3jz9j3wJevnDabkkLZCgMHjJUIeZkpjn377LLr8/zr/6VeK96DbsWZ21X3ImQT8+nwia0BIUBi8ZYCdpRnUJmpCgMHhJdiepdrrcubZBo4GXZJegtQ+LJDGvX3+nvfg44CXD7STpOGgo8JKhBP0UCQqDlwQF7Td+ErREgsLgJTlB+/ke0uAmQyUoDF4SE7Q4CPrJkdA6EhQGL0neCrG89k0jEhQGLylBzTF8dh7gJSWoOYbPzgO8pAQ1x/DZeYCX1GnH5hg+Ow/wkjpQb47hs/MALylBzbE7zy7SVeyWIUGbabOgoa4DugwJ2owEhZGgzUhQGAnaTJsF1TboKkhQcwyfnQd4SQlqjuGz8wAvKUHNMXx2HuAlJag5hs/OA7ykBDXH8Nl5gJeUoOYYPjsP8JIS1BzDZ+cBXlKCmmP47DzAS0pQcwyfnQd4SQlqjuGz8wAvKUHNMXx2HuAlJag5hs/OA7ykBDXH8Nl5gJeUoOYYPjsP8JIS1BzDZ+cBXlKCmmP47DzAS0pQcwyfnQd4SQlqjuGz8wAvKUHNMXx2HuAlJag5hs/OA7ykBDXH8Nl5gJd8kII+fvy48rUEXRt4yYco6OPHNUMl6NrAS0pQcwyfnQd4SQlqjuGz8wAv+RAF1TaoH3jJByloHQm6NvCSEtQcw2fnAV5Sgppj+Ow8wEtKUHMMn50HeEkJao7hs/MALylBzTF8dh7gJSWoOYbPzgO8pAQ1x/DZeYCXlKDmGD47D/CSEtQcw2fnAV5Sgppj+Ow8wEtKUHMMn50HeMl4gr7d3d19djr+QoLC4CXjCfrmYO4LCQqDlwwn6PXPx3NfSVAYvGQ4QS9f5qv4YiH6q8R70W3CCXr+9fHcUlRLUBi8ZDhBC6bboRIUBi8pQc0xfHYe4CXDCfrx+bvs+s8RDjPddDNifHYe4CXDCZqOgz6d7siDgt54O3d8dh7gJeMJWkGCwuAlJeiymARN4CUl6NKYtkGzACUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLSlBzDJ+dB3hJCWqO4bPzAC8pQc0xfHYe4CUlqDmGz84DvKQENcfw2XmAl5Sg5hg+Ow/wkhLUHMNn5wFeUoKaY/jsPMBLPkhBP3z4UPlagq4NvORDFPTDh5qhEnRt4CUlqDmGz84DvKQENcfw2XmAl3yIgmob1A+85IMUtI4EXRt4SQlqjuGz8wAvKUHNMXx2HuAlJag5hs/OA7ykBDXH8Nl5gJeUoOYYPjsP8JIS1BzDZ+cBXlKCmmP47DzAS0pQcwyfnQd4SQlqjuGz8wAvKUHNMXx2HuAlJag5hs/OA7ykBDXH8Nl5gJeUoOYYPjsP8JIS1BzDZ+cBXlKCmmP47DzAS0pQcwyfnQd4SQlqjuGz8wAvKUHNMXx2HuAlowsqus56PFzKLQVdjduUWDG7Qsz7fzqETpScR4I+LDpRch4J+rDoRMl51iKoEPeFBBWhkaAiNBJUhKYtgp6/2E08O6V/kHXSiZI1WiLo9euD4vHj83fwT7JGOlGyTksEvfzhtPLYSjpRsk5LBO3EwqUTJeu0RNDs8mUHNs86UbJGWwQVLUWCitC0RdBOHIHpRMkaLRG0E/sPnShZpyWCduIITCdK1mmJoJ1YuHSiZJ2WCNqNIzCdKFmjLYKKliJBRWjaImgnjsB0omSNlgjaif2HTpSs0xJBO3EEphMl67RE0E4sXDpRsk5LBO3GEZhOlKzRFkFFS5GgIjRtEbQTR2A6UbJGSwTtxP5DJ0rWaYmgnTgC04mSdVoiaCcWLp0oWaclgnbjCEwnStZoi6CipUhQERoJ+oA4f7H79Fg7SSIoaSfp+vV3EvQBMt59aPcORCnmm88l6AMkLVnazvgw09t/+kaCPjwuvz+mf4S1c/my+Ff4ts2riTqtEVS0EwkqQiNBRWgkqAiNBBWhkaAiNBI0y0bbj07yh4u9zbPRk6P8/1Z6UTW24qvEbZGgSdCNo+Jh8yyzqiZB14QETWZ+tZM/DL6SoPGQoEnQ3395ll39+Gq6ir867PXSan+03ev1dtLav7fx02cn0+ezwsjRk5/y7+9PvsyGva3yqZ3R9HlxRyRo0vAPfzzJRr/+60TQq8OtfIG6eXaxl1s2eHRysbeTO/roZPJ88aI8mbYJBqWwxZf75WbCoDd7XtwRCZoE3R/sZ8Od4UTQYZIrt/P/xqv84uvcuMnzWTY1crJuT4vOneKtJn9onX8vSNBCqOFW1t+fCjroFeTCDfOHjaNioTn67GT2/HgVfzQTtFypz56SoPeDBC0Evfjyly9OZoKWa/F8YZnv3k++ToKOny9eVBd0v59/V4LeNxK0XCX/5dVWNlvFb5RyDZOQ+RfFqj3/Y/J88aKaoE+O0paqBL1vJGgp6CBfcQ9nO0m5mUnMtADd3jia7SSVzxcv+kTQbLBxJEHvGwlaClocJqocZkoe9vOHP+U7Rekw06tHJ9Pns4WC5v7+jwS9ZyToqgznNkCFGxJ0BdJavTgGKtyRoKuQji/JTwQJKkIjQUVoJKgIjQQVoZGgIjQSVIRGgorQ/D876MixRyJ4AwAAAABJRU5ErkJggg==" alt />
+<img src="data:image/png;base64,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" alt />
 <p class="caption">Figure 3: Plotting positions in Weibull grid.</p>
 </div>
 <p><br></p>
-<p><em>Figure 3</em> shows that the consideration of survivors (orange points, <em>Method: johnson</em>) decreases the failure probability in comparison to the sole evaluation of failed items (green points, <em>Method: mr</em>).</p>
+<p><em>Figure 3</em> shows that the consideration of survivors (orange
+points, <em>Method: johnson</em>) decreases the failure probability in
+comparison to the sole evaluation of failed items (green points,
+<em>Method: mr</em>).</p>
 </div>
 <div id="log-normal-probability-plot" class="section level3">
 <h3>Log-normal Probability Plot</h3>
-<p>Finally, we want to use a log-normal probability plot to visualize the estimated failure probabilities.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1"></a><span class="co"># Log-normal grid for estimated probabilities: </span></span>
-<span id="cb5-2"><a href="#cb5-2"></a>lognorm_grid &lt;-<span class="st"> </span><span class="kw">plot_prob</span>(</span>
-<span id="cb5-3"><a href="#cb5-3"></a>  cdf_tbl,</span>
-<span id="cb5-4"><a href="#cb5-4"></a>  <span class="dt">distribution =</span> <span class="st">&quot;lognormal&quot;</span>,</span>
-<span id="cb5-5"><a href="#cb5-5"></a>  <span class="dt">title_main =</span> <span class="st">&quot;Log-normal Probability Plot&quot;</span>,</span>
-<span id="cb5-6"><a href="#cb5-6"></a>  <span class="dt">title_x =</span> <span class="st">&quot;Mileage in km&quot;</span>,</span>
-<span id="cb5-7"><a href="#cb5-7"></a>  <span class="dt">title_y =</span> <span class="st">&quot;Probability of Failure in %&quot;</span>,</span>
-<span id="cb5-8"><a href="#cb5-8"></a>  <span class="dt">title_trace =</span> <span class="st">&quot;Method&quot;</span>,</span>
-<span id="cb5-9"><a href="#cb5-9"></a>  <span class="dt">plot_method =</span> <span class="st">&quot;ggplot2&quot;</span></span>
-<span id="cb5-10"><a href="#cb5-10"></a>)</span>
-<span id="cb5-11"><a href="#cb5-11"></a></span>
-<span id="cb5-12"><a href="#cb5-12"></a>lognorm_grid</span></code></pre></div>
+<p>Finally, we want to use a log-normal probability plot to visualize
+the estimated failure probabilities.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Log-normal grid for estimated probabilities: </span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>lognorm_grid <span class="ot">&lt;-</span> <span class="fu">plot_prob</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  cdf_tbl,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">distribution =</span> <span class="st">&quot;lognormal&quot;</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_main =</span> <span class="st">&quot;Log-normal Probability Plot&quot;</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_x =</span> <span class="st">&quot;Mileage in km&quot;</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_y =</span> <span class="st">&quot;Probability of Failure in %&quot;</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">title_trace =</span> <span class="st">&quot;Method&quot;</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot_method =</span> <span class="st">&quot;ggplot2&quot;</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>lognorm_grid</span></code></pre></div>
 <div class="figure">
-<img src="data:image/png;base64,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" alt />
+<img src="data:image/png;base64,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" alt />
 <p class="caption">Figure 4: Plotting positions in log-normal grid.</p>
 </div>
 <p><br></p>
-<p>On the basis of <em>Figure 3</em> and <em>Figure 4</em> we can subjectively assess the goodness of fit of Weibull and log-normal. It can be seen that in both grids, the plotted points roughly fall on a straight line. Hence one can say that the Weibull as well as the log-normal are good model candidates for the <code>shock</code> data.</p>
+<p>On the basis of <em>Figure 3</em> and <em>Figure 4</em> we can
+subjectively assess the goodness of fit of Weibull and log-normal. It
+can be seen that in both grids, the plotted points roughly fall on a
+straight line. Hence one can say that the Weibull as well as the
+log-normal are good model candidates for the <code>shock</code>
+data.</p>
 </div>
 </div>
-<div class="footnotes">
+<div class="footnotes footnotes-end-of-document">
 <hr />
 <ol>
-<li id="fn1"><p>Kapur, K. C.; Lamberson, L. R.: <em>Reliability in Engineering Design</em>, <em>New York: Wiley</em>, 1977, pp. 297-301<a href="#fnref1" class="footnote-back">↩︎</a></p></li>
-<li id="fn2"><p>Benard, A.; Bos-Levenbach, E. C.: <em>The Plotting of Observations on Probability Paper</em>, <em>Statistica Neerlandica 7 (3)</em>, 1953, pp. 163-173<a href="#fnref2" class="footnote-back">↩︎</a></p></li>
-<li id="fn3"><p>Meeker, W. Q.; Escobar, L. A.: <em>Statistical Methods for Reliability Data</em>, <em>New York, Wiley series in probability and statistics</em>, 1998, p. 630<a href="#fnref3" class="footnote-back">↩︎</a></p></li>
+<li id="fn1"><p>Kapur, K. C.; Lamberson, L. R.: <em>Reliability in
+Engineering Design</em>, <em>New York: Wiley</em>, 1977, pp. 297-301<a href="#fnref1" class="footnote-back">↩︎</a></p></li>
+<li id="fn2"><p>Benard, A.; Bos-Levenbach, E. C.: <em>The Plotting of
+Observations on Probability Paper</em>, <em>Statistica Neerlandica 7
+(3)</em>, 1953, pp. 163-173<a href="#fnref2" class="footnote-back">↩︎</a></p></li>
+<li id="fn3"><p>Meeker, W. Q.; Escobar, L. A.: <em>Statistical Methods
+for Reliability Data</em>, <em>New York, Wiley series in probability and
+statistics</em>, 1998, p. 630<a href="#fnref3" class="footnote-back">↩︎</a></p></li>
 </ol>
 </div>
 
